@@ -7,6 +7,8 @@ import { GridFloor } from '../world/GridFloor';
 import { Lighting } from '../world/Lighting';
 import { Player } from '../entities/Player';
 import { BulletManager } from '../managers/BulletManager';
+import { EnemyManager } from '../managers/EnemyManager';
+import { CollisionSystem } from '../managers/CollisionSystem';
 import { ARENA } from '../utils/constants';
 
 /**
@@ -23,6 +25,8 @@ export class Game {
   private inputManager: InputManager;
   private player: Player;
   private bulletManager: BulletManager;
+  private enemyManager: EnemyManager;
+  private collisionSystem: CollisionSystem;
   private clock: THREE.Clock;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -38,6 +42,11 @@ export class Game {
 
     this.player = new Player();
     this.bulletManager = new BulletManager();
+    this.enemyManager = new EnemyManager();
+    this.collisionSystem = new CollisionSystem(
+      this.bulletManager,
+      this.enemyManager
+    );
     this.setupWorld();
     this.bindEvents();
   }
@@ -51,6 +60,7 @@ export class Game {
 
     this.sceneManager.add(this.player.mesh);
     this.sceneManager.add(this.bulletManager.mesh);
+    this.sceneManager.add(this.enemyManager.mesh);
   }
 
   private bindEvents(): void {
@@ -73,6 +83,19 @@ export class Game {
     this.inputManager.update(delta);
     this.player.update(delta, this.inputManager.targetX, this.cameraManager.camera);
     this.bulletManager.update(delta, this.player.mesh.position);
+    this.enemyManager.update(delta, this.player.mesh.position, this.cameraManager.camera);
+    this.collisionSystem.update(this.player.mesh.position, {
+      onEnemyKilled: (x, y, z) => {
+        // TODO(шаг 6): заспавнить кристалл опыта в этой точке
+        void x;
+        void y;
+        void z;
+      },
+      onPlayerHit: () => {
+        // TODO: подключить HP-систему игрока (пока враг просто исчезает при контакте)
+        console.warn('Player hit by enemy — HP system not implemented yet');
+      },
+    });
 
     this.rendererManager.render(
       this.sceneManager.scene,

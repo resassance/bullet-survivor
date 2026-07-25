@@ -71,6 +71,28 @@ export const BULLET = {
   LENGTH: 0.4, // капсула вытянута вдоль Z — вид "болта", а не шарика
   SPAWN_HEIGHT: 1.3, // высота вылета (примерно уровень груди персонажа)
   COLOR: 0xff3b6e, // неон-розовый, перекликается с рим-лайтом
+  DAMAGE: 1,
+};
+
+// --- ВРАГИ (ЭФИРИАЛЫ) ---
+export const ENEMY = {
+  POOL_SIZE: 150,
+  WIDTH: 1.4,
+  HEIGHT: 1.9,
+  SPEED: 3.2, // юниты/сек к игроку по Z
+  HOMING_STRENGTH: 1.5, // скорость доворота по X к позиции игрока (доля/сек)
+  HEALTH: 2,
+  COLLISION_RADIUS: 0.6,
+  SPAWN_INTERVAL: 1.4, // сек между волнами
+  SPAWN_COUNT_MIN: 2,
+  SPAWN_COUNT_MAX: 4,
+  SPAWN_X_SPREAD: 8, // разброс по X при спавне волны — шире границ игрока, часть врагов заходит по диагонали
+  DESPAWN_Z: 15, // safety net: если враг прошёл мимо игрока не столкнувшись
+};
+
+// --- КОЛЛИЗИИ ---
+export const COLLISION = {
+  PLAYER_RADIUS: 0.5,
 };
 
 // --- ВВОД ---

@@ -5,7 +5,7 @@ import { BULLET, ARENA } from '../utils/constants';
  * Данные одной пули в пуле. Не THREE.Object3D — просто числа,
  * никакой GPU/GC-нагрузки на "мёртвых" пулях.
  */
-interface BulletSlot {
+export interface BulletSlot {
   x: number;
   y: number;
   z: number;
@@ -26,8 +26,8 @@ interface BulletSlot {
  */
 export class BulletManager {
   public readonly mesh: THREE.InstancedMesh;
+  public readonly slots: BulletSlot[] = [];
 
-  private slots: BulletSlot[] = [];
   private dummy = new THREE.Object3D();
   private fireCooldown = 0;
   private nextFreeHint = 0; // ring-buffer подсказка, чтобы не сканировать пул с нуля каждый раз
