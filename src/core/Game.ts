@@ -6,6 +6,7 @@ import { InputManager } from './InputManager';
 import { GridFloor } from '../world/GridFloor';
 import { Lighting } from '../world/Lighting';
 import { Player } from '../entities/Player';
+import { BulletManager } from '../managers/BulletManager';
 import { ARENA } from '../utils/constants';
 
 /**
@@ -21,6 +22,7 @@ export class Game {
   private rendererManager: RendererManager;
   private inputManager: InputManager;
   private player: Player;
+  private bulletManager: BulletManager;
   private clock: THREE.Clock;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -35,6 +37,7 @@ export class Game {
     this.clock = new THREE.Clock();
 
     this.player = new Player();
+    this.bulletManager = new BulletManager();
     this.setupWorld();
     this.bindEvents();
   }
@@ -47,6 +50,7 @@ export class Game {
     this.sceneManager.add(lighting.group);
 
     this.sceneManager.add(this.player.mesh);
+    this.sceneManager.add(this.bulletManager.mesh);
   }
 
   private bindEvents(): void {
@@ -68,6 +72,7 @@ export class Game {
 
     this.inputManager.update(delta);
     this.player.update(delta, this.inputManager.targetX, this.cameraManager.camera);
+    this.bulletManager.update(delta, this.player.mesh.position);
 
     this.rendererManager.render(
       this.sceneManager.scene,
