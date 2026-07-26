@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { LIGHTING } from '../utils/constants';
 
-/**
- * Освещение сцены: мягкий ambient + направленный "лунный" свет +
- * холодный/тёплый рим-лайт для контраста (депрессивный неон-вайб).
- */
 export class Lighting {
   public readonly group: THREE.Group;
 
@@ -29,8 +25,6 @@ export class Lighting {
     directional.castShadow = true;
     this.group.add(directional);
 
-    // Рим-лайт сзади-сбоку — подсвечивает силуэты врагов/персонажа,
-    // усиливая "кинематографичность" кадра.
     const rim = new THREE.PointLight(
       LIGHTING.RIM_COLOR,
       LIGHTING.RIM_INTENSITY,

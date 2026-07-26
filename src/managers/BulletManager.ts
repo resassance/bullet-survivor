@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { BULLET, ARENA } from '../utils/constants';
 
-/**
- * Данные одной пули в пуле. Не THREE.Object3D — просто числа,
- * никакой GPU/GC-нагрузки на "мёртвых" пулях.
- */
 export interface BulletSlot {
   x: number;
   y: number;
@@ -12,25 +8,18 @@ export interface BulletSlot {
   alive: boolean;
 }
 
-/**
- * Управляет автострельбой игрока вдоль -Z.
- *
- * Архитектура — object pool + InstancedMesh:
- * - Фиксированный массив слотов создаётся один раз (BULLET.POOL_SIZE),
- *   дальше никаких `new`/`dispose()` в рантайме — только переключение
- *   флага `alive`. Это и есть тот pooling, о котором договаривались:
- *   без него GC-паузы волнами убивали бы фреймрейт на мобилках.
- * - Каждый кадр живые пули упаковываются в начало instance-буфера,
- *   `mesh.count` обрезается до их числа — GPU рисует ровно столько
- *   инстансов, сколько реально летит, одним draw call'ом.
- */
 export class BulletManager {
   public readonly mesh: THREE.InstancedMesh;
   public readonly slots: BulletSlot[] = [];
 
   private dummy = new THREE.Object3D();
   private fireCooldown = 0;
-  private nextFreeHint = 0; // ring-buffer подсказка, чтобы не сканировать пул с нуля каждый раз
+  private nextFreeHint = 0;
+
+  private fireRate = BULLET.FIRE_RATE;
+  private bulletSpeed = BULLET.SPEED;
+  private bulletsPerShot = 1;
+  public damage = BULLET.DAMAGE;
 
   constructor() {
     const geometry = new THREE.CapsuleGeometry(
@@ -39,20 +28,17 @@ export class BulletManager {
       4,
       8
     );
-    // Капсула по умолчанию вытянута вдоль Y — разворачиваем геометрию
-    // один раз при создании, чтобы дальше матрицы инстансов содержали
-    // только translation (без rotation) — дешевле каждый кадр.
     geometry.rotateX(Math.PI / 2);
 
     const material = new THREE.MeshBasicMaterial({
       color: BULLET.COLOR,
-      toneMapped: false, // сохраняем чистый яркий цвет — важно для Bloom на шаге 7
+      toneMapped: false,
     });
 
     this.mesh = new THREE.InstancedMesh(geometry, material, BULLET.POOL_SIZE);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.count = 0; // активных пуль пока нет — не рендерим ничего
-    this.mesh.frustumCulled = false; // пули разбросаны по всей глубине арены, авто-culling тут бесполезен
+    this.mesh.count = 0;
+    this.mesh.frustumCulled = false;
 
     for (let i = 0; i < BULLET.POOL_SIZE; i++) {
       this.slots.push({ x: 0, y: 0, z: 0, alive: false });
@@ -69,18 +55,24 @@ export class BulletManager {
     this.fireCooldown -= delta;
     if (this.fireCooldown > 0) return;
 
-    this.fireCooldown += 1 / BULLET.FIRE_RATE;
-    this.spawnBullet(playerPosition);
+    this.fireCooldown += 1 / this.fireRate;
+    this.spawnVolley(playerPosition);
   }
 
-  private spawnBullet(playerPosition: THREE.Vector3): void {
-    const slot = this.findFreeSlot();
-    if (!slot) return; // пул исчерпан — пропускаем выстрел, не крашимся
+  private spawnVolley(playerPosition: THREE.Vector3): void {
+    const count = this.bulletsPerShot;
+    const spread = 0.22;
+    const startOffset = -((count - 1) * spread) / 2;
 
-    slot.alive = true;
-    slot.x = playerPosition.x;
-    slot.y = BULLET.SPAWN_HEIGHT;
-    slot.z = playerPosition.z;
+    for (let i = 0; i < count; i++) {
+      const slot = this.findFreeSlot();
+      if (!slot) return;
+
+      slot.alive = true;
+      slot.x = playerPosition.x + startOffset + i * spread;
+      slot.y = BULLET.SPAWN_HEIGHT;
+      slot.z = playerPosition.z;
+    }
   }
 
   private findFreeSlot(): BulletSlot | null {
@@ -97,14 +89,29 @@ export class BulletManager {
   private moveAndDespawn(delta: number): void {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
-      slot.z -= BULLET.SPEED * delta;
+      slot.z -= this.bulletSpeed * delta;
       if (slot.z < ARENA.BULLET_DESPAWN_Z) {
         slot.alive = false;
       }
     }
   }
 
-  /** Полный сброс пула — вызывается при рестарте после Game Over */
+  public increaseFireRate(multiplier: number): void {
+    this.fireRate *= multiplier;
+  }
+
+  public addBulletsPerShot(amount: number): void {
+    this.bulletsPerShot += amount;
+  }
+
+  public increaseDamage(amount: number): void {
+    this.damage += amount;
+  }
+
+  public increaseBulletSpeed(multiplier: number): void {
+    this.bulletSpeed *= multiplier;
+  }
+
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;
@@ -112,6 +119,10 @@ export class BulletManager {
     this.mesh.count = 0;
     this.fireCooldown = 0;
     this.nextFreeHint = 0;
+    this.fireRate = BULLET.FIRE_RATE;
+    this.bulletSpeed = BULLET.SPEED;
+    this.bulletsPerShot = 1;
+    this.damage = BULLET.DAMAGE;
   }
 
   private syncInstances(): void {

@@ -8,18 +8,14 @@ import { Lighting } from '../world/Lighting';
 import { Player } from '../entities/Player';
 import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
+import { GateManager } from '../managers/GateManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
 import { HealthManager } from '../managers/HealthManager';
 import { HpBar } from '../ui/HpBar';
 import { GameOverScreen } from '../ui/GameOverScreen';
+import { GATE_MODIFIERS } from '../gameplay/modifiers';
 import { ARENA, PLAYER } from '../utils/constants';
 
-/**
- * Главный класс-оркестратор.
- * Собирает сцену/камеру/рендерер, все игровые системы (движение,
- * пули, враги, коллизии, HP) и UI-оверлеи, запускает game loop.
- * Каждая система — отдельный модуль, подключаемый здесь.
- */
 export class Game {
   private sceneManager: SceneManager;
   private cameraManager: CameraManager;
@@ -28,6 +24,7 @@ export class Game {
   private player: Player;
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
+  private gateManager: GateManager;
   private collisionSystem: CollisionSystem;
   private healthManager: HealthManager;
   private hpBar: HpBar;
@@ -54,6 +51,7 @@ export class Game {
     this.player = new Player();
     this.bulletManager = new BulletManager();
     this.enemyManager = new EnemyManager();
+    this.gateManager = new GateManager();
     this.collisionSystem = new CollisionSystem(
       this.bulletManager,
       this.enemyManager
@@ -78,6 +76,7 @@ export class Game {
     this.sceneManager.add(this.player.mesh);
     this.sceneManager.add(this.bulletManager.mesh);
     this.sceneManager.add(this.enemyManager.mesh);
+    this.sceneManager.add(this.gateManager.group);
   }
 
   private bindEvents(): void {
@@ -122,10 +121,15 @@ export class Game {
       this.player.mesh.position,
       this.cameraManager.camera
     );
+    this.gateManager.update(
+      delta,
+      this.player.mesh.position,
+      this.bulletManager.slots,
+      (modifierIndex) => this.applyGateModifier(modifierIndex)
+    );
 
     this.collisionSystem.update(this.player.mesh.position, {
       onEnemyKilled: (x, y, z) => {
-        // TODO(шаг 6): заспавнить кристалл опыта в этой точке
         void x;
         void y;
         void z;
@@ -134,9 +138,28 @@ export class Game {
     });
   }
 
+  private applyGateModifier(modifierIndex: number): void {
+    const modifier = GATE_MODIFIERS[modifierIndex];
+
+    switch (modifier.id) {
+      case 'multishot':
+        this.bulletManager.addBulletsPerShot(2);
+        break;
+      case 'fireRate':
+        this.bulletManager.increaseFireRate(2);
+        break;
+      case 'damage':
+        this.bulletManager.increaseDamage(1);
+        break;
+      case 'bulletSpeed':
+        this.bulletManager.increaseBulletSpeed(1.5);
+        break;
+    }
+  }
+
   private handlePlayerHit(): void {
     const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
-    if (!damageApplied) return; // заблокировано окном неуязвимости
+    if (!damageApplied) return;
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
 
@@ -156,6 +179,7 @@ export class Game {
 
     this.bulletManager.reset();
     this.enemyManager.reset();
+    this.gateManager.reset();
     this.player.resetPosition();
     this.inputManager.reset();
 

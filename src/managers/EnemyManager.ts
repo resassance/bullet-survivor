@@ -8,22 +8,14 @@ export interface EnemySlot {
   z: number;
   alive: boolean;
   health: number;
-  // Индивидуальные параметры движения — назначаются при спавне и живут
-  // всю "жизнь" врага, чтобы разные эфириалы не двигались синхронно.
   speed: number;
   homingStrength: number;
-  laneOffsetX: number; // целевая полоса относительно X игрока, а не точное преследование
+  laneOffsetX: number;
   wobblePhase: number;
   wobbleFrequency: number;
   wobbleAmplitude: number;
 }
 
-/**
- * Управляет ордой эфириалов: спавн волнами на Z = ARENA.ENEMY_SPAWN_Z,
- * движение к игроку (+Z с лёгким хоумингом по X), billboard-разворот
- * к камере. Архитектура та же, что у BulletManager — пул слотов
- * + InstancedMesh, без runtime-аллокаций.
- */
 export class EnemyManager {
   public readonly mesh: THREE.InstancedMesh;
   public readonly slots: EnemySlot[] = [];
@@ -34,12 +26,10 @@ export class EnemyManager {
 
   constructor() {
     const geometry = new THREE.PlaneGeometry(ENEMY.WIDTH, ENEMY.HEIGHT);
-    // Поднимаем пивот геометрии так, чтобы "ноги" врага стояли на полу —
-    // тогда в матрице инстанса position.y всегда равен 0, проще считать.
     geometry.translate(0, ENEMY.HEIGHT / 2, 0);
 
     const texture = createSilhouettePlaceholder({
-      glowColor: '#ff2d55', // кроваво-неоновый контур — под тематику "эфириалов"
+      glowColor: '#ff2d55',
       fillColor: '#12060a',
       label: 'ETHEREAL',
     });
@@ -54,7 +44,7 @@ export class EnemyManager {
     this.mesh = new THREE.InstancedMesh(geometry, material, ENEMY.POOL_SIZE);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
-    this.mesh.frustumCulled = false; // враги разбросаны по всей глубине арены
+    this.mesh.frustumCulled = false;
 
     for (let i = 0; i < ENEMY.POOL_SIZE; i++) {
       this.slots.push({
@@ -100,21 +90,17 @@ export class EnemyManager {
 
   private spawnEnemy(): void {
     const slot = this.findFreeSlot();
-    if (!slot) return; // пул исчерпан — пропускаем спавн, не крашимся
+    if (!slot) return;
 
     slot.alive = true;
     slot.health = ENEMY.HEALTH;
     slot.x = THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_X_SPREAD);
     slot.y = 0;
-    // Небольшой разброс по Z, чтобы волна не спавнилась идеально ровной линией
     slot.z = ARENA.ENEMY_SPAWN_Z + THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_Z_JITTER);
 
-    // Индивидуализация движения — ключ к тому, чтобы враги не шли строем:
     slot.speed = ENEMY.SPEED * (1 + THREE.MathUtils.randFloatSpread(ENEMY.SPEED_VARIANCE));
     slot.homingStrength =
       ENEMY.HOMING_STRENGTH * (1 + THREE.MathUtils.randFloatSpread(ENEMY.HOMING_VARIANCE));
-    // Враг целится не точно в игрока, а в свою полосу рядом с ним —
-    // так орда расходится веером, а не сходится в одну точку
     slot.laneOffsetX = THREE.MathUtils.randFloatSpread(ENEMY.LANE_OFFSET_SPREAD);
     slot.wobblePhase = Math.random() * Math.PI * 2;
     slot.wobbleFrequency = THREE.MathUtils.randFloat(
@@ -140,9 +126,6 @@ export class EnemyManager {
 
       slot.z += slot.speed * delta;
 
-      // Целевая X-точка — не позиция игрока напрямую, а его X + личная
-      // полоса врага + синусоидальное виляние. Это и разбивает "строй":
-      // даже с однотипным доворотом враги сходятся к разным точкам.
       const wobble =
         Math.sin(this.elapsedTime * slot.wobbleFrequency + slot.wobblePhase) *
         slot.wobbleAmplitude;
@@ -152,12 +135,11 @@ export class EnemyManager {
       slot.x += (targetX - slot.x) * homingFactor;
 
       if (slot.z > ENEMY.DESPAWN_Z) {
-        slot.alive = false; // safety net: прошёл мимо игрока, не столкнувшись
+        slot.alive = false;
       }
     }
   }
 
-  /** Полный сброс пула — вызывается при рестарте после Game Over */
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;

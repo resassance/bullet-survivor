@@ -1,12 +1,5 @@
 import { PLAYER } from '../utils/constants';
 
-/**
- * HP игрока + окно неуязвимости после удара.
- * Неуязвимость нужна не только "для фана" — без неё несколько
- * врагов, столкнувшихся с игроком в один и тот же кадр, снимут
- * несколько единиц HP разом (CollisionSystem это позволяет,
- * т.к. проверяет всех врагов независимо).
- */
 export class HealthManager {
   private hp: number;
   private isDead = false;
@@ -24,7 +17,6 @@ export class HealthManager {
     }
   }
 
-  /** @returns true, если урон реально применился (не был заблокирован неуязвимостью) */
   public takeDamage(amount: number): boolean {
     if (this.isDead || this.invulnerabilityTimer > 0) return false;
 

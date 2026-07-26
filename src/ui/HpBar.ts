@@ -1,9 +1,3 @@
-/**
- * HP-бар игрока — простой DOM-оверлей поверх canvas.
- * Рисовать HUD внутри Three.js-сцены избыточно и дороже;
- * для плоского 2D-интерфейса (HP, счёт, уровень) DOM+CSS проще
- * и на порядок дешевле по производительности.
- */
 export class HpBar {
   private fillElement: HTMLDivElement;
 
@@ -21,8 +15,6 @@ export class HpBar {
   public update(current: number, max: number): void {
     const ratio = Math.max(0, Math.min(1, current / max));
     this.fillElement.style.width = `${ratio * 100}%`;
-
-    // Ближе к смерти — бар краснеет резче, усиливая тревожность
     this.fillElement.classList.toggle('hp-bar-fill--critical', ratio <= 0.3);
   }
 }

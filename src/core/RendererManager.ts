@@ -1,12 +1,6 @@
 import * as THREE from 'three';
 import { RENDERER } from '../utils/constants';
 
-/**
- * Оборачивает THREE.WebGLRenderer.
- * Отвечает за инициализацию рендерера и адаптивный resize,
- * включая фикс для мобильных браузеров, где 100vh "плавает"
- * из-за скрывающейся адресной строки.
- */
 export class RendererManager {
   public readonly renderer: THREE.WebGLRenderer;
 
@@ -25,11 +19,6 @@ export class RendererManager {
     this.resize();
   }
 
-  /**
-   * Фикс для мобильных браузеров: реальная высота вьюпорта
-   * записывается в CSS-переменную --vh, т.к. `100vh` в Safari/Chrome
-   * mobile не учитывает динамическую адресную строку.
-   */
   private applyViewportFix(): void {
     const setVh = () => {
       const vh = window.innerHeight * 0.01;

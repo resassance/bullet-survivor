@@ -9,8 +9,6 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: #05050a;
-  /* запрещаем жесты браузера (pull-to-refresh, pinch-zoom),
-     которые мешают тапам/свайпам в игре */
   overscroll-behavior: none;
   touch-action: none;
   -webkit-user-select: none;
@@ -19,9 +17,6 @@ html, body {
 
 #app {
   width: 100%;
-  /* используем --vh вместо 100vh: фикс для мобильных браузеров,
-     где адресная строка динамически меняет высоту вьюпорта
-     (устанавливается в RendererManager.ts) */
   height: calc(var(--vh, 1vh) * 100);
   position: relative;
 }
@@ -32,7 +27,6 @@ html, body {
   height: 100%;
 }
 
-/* ===== HP-БАР ===== */
 .hp-bar {
   position: absolute;
   top: env(safe-area-inset-top, 16px);
@@ -64,7 +58,6 @@ html, body {
   50% { opacity: 0.55; }
 }
 
-/* ===== GAME OVER ===== */
 .game-over-screen {
   position: absolute;
   inset: 0;

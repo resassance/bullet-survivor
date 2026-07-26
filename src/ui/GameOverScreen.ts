@@ -1,7 +1,3 @@
-/**
- * Экран Game Over — DOM-оверлей, скрыт по умолчанию.
- * Тексты и вайб — в тон "депрессивно, дединсайд" тематике проекта.
- */
 export class GameOverScreen {
   private element: HTMLDivElement;
 
