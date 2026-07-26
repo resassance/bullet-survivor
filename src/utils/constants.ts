@@ -60,6 +60,9 @@ export const PLAYER = {
   HEIGHT: 2.2,
   SPAWN_Z: 0,
   MOVE_SMOOTHING: 12, // выше = резче реагирует на ввод (экспоненциальный lerp)
+  MAX_HP: 5,
+  CONTACT_DAMAGE: 1, // урон от одного касания эфириала
+  INVULNERABILITY_DURATION: 0.8, // сек неуязвимости после удара — защита от мгновенного мультихита
 };
 
 // --- ПУЛИ ---
@@ -80,13 +83,21 @@ export const ENEMY = {
   WIDTH: 1.4,
   HEIGHT: 1.9,
   SPEED: 3.2, // юниты/сек к игроку по Z
-  HOMING_STRENGTH: 1.5, // скорость доворота по X к позиции игрока (доля/сек)
+  SPEED_VARIANCE: 0.18, // ±18% индивидуального разброса скорости — не идут единой шеренгой
+  HOMING_STRENGTH: 1.5, // базовая скорость доворота по X к целевой линии
+  HOMING_VARIANCE: 0.4, // ±40% разброса силы доворота между врагами
+  LANE_OFFSET_SPREAD: 3.5, // своя "полоса" относительно игрока — не сходятся в одну точку
+  WOBBLE_AMPLITUDE_MIN: 0.15, // лёгкое синусоидальное виляние по X — органика вместо строя
+  WOBBLE_AMPLITUDE_MAX: 0.6,
+  WOBBLE_FREQUENCY_MIN: 0.5,
+  WOBBLE_FREQUENCY_MAX: 1.3,
   HEALTH: 2,
   COLLISION_RADIUS: 0.6,
   SPAWN_INTERVAL: 1.4, // сек между волнами
   SPAWN_COUNT_MIN: 2,
   SPAWN_COUNT_MAX: 4,
   SPAWN_X_SPREAD: 8, // разброс по X при спавне волны — шире границ игрока, часть врагов заходит по диагонали
+  SPAWN_Z_JITTER: 3, // разброс стартовой Z — волна не спавнится идеально ровной линией
   DESPAWN_Z: 15, // safety net: если враг прошёл мимо игрока не столкнувшись
 };
 

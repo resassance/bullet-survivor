@@ -54,4 +54,9 @@ export class Player {
 
     billboardYAxis(this.mesh, camera);
   }
+
+  /** Возвращает игрока в стартовую позицию — используется при рестарте */
+  public resetPosition(): void {
+    this.mesh.position.set(0, PLAYER.HEIGHT / 2, PLAYER.SPAWN_Z);
+  }
 }

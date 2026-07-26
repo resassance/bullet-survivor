@@ -104,6 +104,16 @@ export class BulletManager {
     }
   }
 
+  /** Полный сброс пула — вызывается при рестарте после Game Over */
+  public reset(): void {
+    for (const slot of this.slots) {
+      slot.alive = false;
+    }
+    this.mesh.count = 0;
+    this.fireCooldown = 0;
+    this.nextFreeHint = 0;
+  }
+
   private syncInstances(): void {
     let renderIndex = 0;
     for (const slot of this.slots) {

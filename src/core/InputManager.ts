@@ -117,6 +117,11 @@ export class InputManager {
     return this.desiredX;
   }
 
+  /** Сбрасывает целевую позицию в центр — используется при рестарте */
+  public reset(): void {
+    this.desiredX = 0;
+  }
+
   public dispose(): void {
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerdown', this.onPointerMove);

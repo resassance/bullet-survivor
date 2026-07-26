@@ -9,14 +9,16 @@ import { Player } from '../entities/Player';
 import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
-import { ARENA } from '../utils/constants';
+import { HealthManager } from '../managers/HealthManager';
+import { HpBar } from '../ui/HpBar';
+import { GameOverScreen } from '../ui/GameOverScreen';
+import { ARENA, PLAYER } from '../utils/constants';
 
 /**
  * Главный класс-оркестратор.
- * На шаге 1 собирает сцену/камеру/рендерер/пол/свет и запускает
- * game loop. В следующих шагах сюда будут добавляться
- * PlayerController, BulletManager, EnemyManager и т.д. —
- * каждый как отдельный модуль, подключаемый здесь.
+ * Собирает сцену/камеру/рендерер, все игровые системы (движение,
+ * пули, враги, коллизии, HP) и UI-оверлеи, запускает game loop.
+ * Каждая система — отдельный модуль, подключаемый здесь.
  */
 export class Game {
   private sceneManager: SceneManager;
@@ -27,9 +29,18 @@ export class Game {
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
   private collisionSystem: CollisionSystem;
+  private healthManager: HealthManager;
+  private hpBar: HpBar;
+  private gameOverScreen: GameOverScreen;
   private clock: THREE.Clock;
+  private isGameOver = false;
 
   constructor(canvas: HTMLCanvasElement) {
+    const container = canvas.parentElement;
+    if (!container) {
+      throw new Error('Canvas must be attached to a container element');
+    }
+
     this.sceneManager = new SceneManager();
     this.rendererManager = new RendererManager(canvas);
     this.cameraManager = new CameraManager(this.rendererManager.aspect);
@@ -47,6 +58,12 @@ export class Game {
       this.bulletManager,
       this.enemyManager
     );
+
+    this.healthManager = new HealthManager(PLAYER.MAX_HP);
+    this.hpBar = new HpBar(container);
+    this.gameOverScreen = new GameOverScreen(container, () => this.restart());
+    this.hpBar.update(this.healthManager.current, this.healthManager.max);
+
     this.setupWorld();
     this.bindEvents();
   }
@@ -80,10 +97,32 @@ export class Game {
     requestAnimationFrame(this.loop);
     const delta = this.clock.getDelta();
 
+    this.healthManager.update(delta);
+
+    if (!this.isGameOver) {
+      this.updateGameplay(delta);
+    }
+
+    this.rendererManager.render(
+      this.sceneManager.scene,
+      this.cameraManager.camera
+    );
+  };
+
+  private updateGameplay(delta: number): void {
     this.inputManager.update(delta);
-    this.player.update(delta, this.inputManager.targetX, this.cameraManager.camera);
+    this.player.update(
+      delta,
+      this.inputManager.targetX,
+      this.cameraManager.camera
+    );
     this.bulletManager.update(delta, this.player.mesh.position);
-    this.enemyManager.update(delta, this.player.mesh.position, this.cameraManager.camera);
+    this.enemyManager.update(
+      delta,
+      this.player.mesh.position,
+      this.cameraManager.camera
+    );
+
     this.collisionSystem.update(this.player.mesh.position, {
       onEnemyKilled: (x, y, z) => {
         // TODO(шаг 6): заспавнить кристалл опыта в этой точке
@@ -91,15 +130,36 @@ export class Game {
         void y;
         void z;
       },
-      onPlayerHit: () => {
-        // TODO: подключить HP-систему игрока (пока враг просто исчезает при контакте)
-        console.warn('Player hit by enemy — HP system not implemented yet');
-      },
+      onPlayerHit: () => this.handlePlayerHit(),
     });
+  }
 
-    this.rendererManager.render(
-      this.sceneManager.scene,
-      this.cameraManager.camera
-    );
-  };
+  private handlePlayerHit(): void {
+    const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
+    if (!damageApplied) return; // заблокировано окном неуязвимости
+
+    this.hpBar.update(this.healthManager.current, this.healthManager.max);
+
+    if (this.healthManager.dead) {
+      this.handleGameOver();
+    }
+  }
+
+  private handleGameOver(): void {
+    this.isGameOver = true;
+    this.gameOverScreen.show();
+  }
+
+  private restart(): void {
+    this.healthManager.reset();
+    this.hpBar.update(this.healthManager.current, this.healthManager.max);
+
+    this.bulletManager.reset();
+    this.enemyManager.reset();
+    this.player.resetPosition();
+    this.inputManager.reset();
+
+    this.gameOverScreen.hide();
+    this.isGameOver = false;
+  }
 }
