@@ -9,11 +9,15 @@ export interface EnemySlot {
   alive: boolean;
   health: number;
   speed: number;
-  homingStrength: number;
-  laneOffsetX: number;
+  baseX: number;
   wobblePhase: number;
   wobbleFrequency: number;
   wobbleAmplitude: number;
+  poisonDamagePerTick: number;
+  poisonTicksRemaining: number;
+  poisonTickTimer: number;
+  poisonTickInterval: number;
+  hitFlashTimer: number;
 }
 
 export class EnemyManager {
@@ -54,24 +58,67 @@ export class EnemyManager {
         alive: false,
         health: 0,
         speed: ENEMY.SPEED,
-        homingStrength: ENEMY.HOMING_STRENGTH,
-        laneOffsetX: 0,
+        baseX: 0,
         wobblePhase: 0,
         wobbleFrequency: 1,
         wobbleAmplitude: 0,
+        poisonDamagePerTick: 0,
+        poisonTicksRemaining: 0,
+        poisonTickTimer: 0,
+        poisonTickInterval: 0,
+        hitFlashTimer: 0,
       });
     }
   }
 
   public update(
     delta: number,
-    playerPosition: THREE.Vector3,
-    camera: THREE.Camera
+    camera: THREE.Camera,
+    onPoisonKill: (x: number, y: number, z: number) => void,
+    onBreach: () => void
   ): void {
     this.elapsedTime += delta;
     this.handleSpawning(delta);
-    this.moveEnemies(delta, playerPosition);
+    this.moveEnemies(delta, onBreach);
+    this.processPoison(delta, onPoisonKill);
+    this.decayHitFlash(delta);
     this.syncInstances(camera);
+  }
+
+  public applyPoison(slot: EnemySlot, damagePerTick: number, ticks: number, tickInterval: number): void {
+    slot.poisonDamagePerTick = damagePerTick;
+    slot.poisonTicksRemaining = ticks;
+    slot.poisonTickTimer = tickInterval;
+    slot.poisonTickInterval = tickInterval;
+  }
+
+  private processPoison(
+    delta: number,
+    onPoisonKill: (x: number, y: number, z: number) => void
+  ): void {
+    for (const slot of this.slots) {
+      if (!slot.alive || slot.poisonTicksRemaining <= 0) continue;
+
+      slot.poisonTickTimer -= delta;
+      if (slot.poisonTickTimer > 0) continue;
+
+      slot.poisonTickTimer += slot.poisonTickInterval;
+      slot.health -= slot.poisonDamagePerTick;
+      slot.poisonTicksRemaining -= 1;
+
+      if (slot.health <= 0) {
+        slot.alive = false;
+        onPoisonKill(slot.x, slot.y, slot.z);
+      }
+    }
+  }
+
+  private decayHitFlash(delta: number): void {
+    for (const slot of this.slots) {
+      if (slot.hitFlashTimer > 0) {
+        slot.hitFlashTimer = Math.max(0, slot.hitFlashTimer - delta);
+      }
+    }
   }
 
   private handleSpawning(delta: number): void {
@@ -93,15 +140,16 @@ export class EnemyManager {
     if (!slot) return;
 
     slot.alive = true;
-    slot.health = ENEMY.HEALTH;
-    slot.x = THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_X_SPREAD);
+    slot.health = Math.min(
+      ENEMY.HEALTH_BASE + ENEMY.HEALTH_GROWTH_PER_SECOND * this.elapsedTime,
+      ENEMY.HEALTH_CAP
+    );
+    slot.baseX = THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_X_SPREAD);
+    slot.x = slot.baseX;
     slot.y = 0;
     slot.z = ARENA.ENEMY_SPAWN_Z + THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_Z_JITTER);
 
     slot.speed = ENEMY.SPEED * (1 + THREE.MathUtils.randFloatSpread(ENEMY.SPEED_VARIANCE));
-    slot.homingStrength =
-      ENEMY.HOMING_STRENGTH * (1 + THREE.MathUtils.randFloatSpread(ENEMY.HOMING_VARIANCE));
-    slot.laneOffsetX = THREE.MathUtils.randFloatSpread(ENEMY.LANE_OFFSET_SPREAD);
     slot.wobblePhase = Math.random() * Math.PI * 2;
     slot.wobbleFrequency = THREE.MathUtils.randFloat(
       ENEMY.WOBBLE_FREQUENCY_MIN,
@@ -111,6 +159,12 @@ export class EnemyManager {
       ENEMY.WOBBLE_AMPLITUDE_MIN,
       ENEMY.WOBBLE_AMPLITUDE_MAX
     );
+
+    slot.poisonDamagePerTick = 0;
+    slot.poisonTicksRemaining = 0;
+    slot.poisonTickTimer = 0;
+    slot.poisonTickInterval = 0;
+    slot.hitFlashTimer = 0;
   }
 
   private findFreeSlot(): EnemySlot | null {
@@ -120,7 +174,7 @@ export class EnemyManager {
     return null;
   }
 
-  private moveEnemies(delta: number, playerPosition: THREE.Vector3): void {
+  private moveEnemies(delta: number, onBreach: () => void): void {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
 
@@ -129,13 +183,11 @@ export class EnemyManager {
       const wobble =
         Math.sin(this.elapsedTime * slot.wobbleFrequency + slot.wobblePhase) *
         slot.wobbleAmplitude;
-      const targetX = playerPosition.x + slot.laneOffsetX + wobble;
+      slot.x = slot.baseX + wobble;
 
-      const homingFactor = 1 - Math.exp(-slot.homingStrength * delta);
-      slot.x += (targetX - slot.x) * homingFactor;
-
-      if (slot.z > ENEMY.DESPAWN_Z) {
+      if (slot.z > ENEMY.BREACH_Z) {
         slot.alive = false;
+        onBreach();
       }
     }
   }
@@ -143,6 +195,8 @@ export class EnemyManager {
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;
+      slot.poisonTicksRemaining = 0;
+      slot.hitFlashTimer = 0;
     }
     this.mesh.count = 0;
     this.spawnCooldown = ENEMY.SPAWN_INTERVAL;
@@ -159,6 +213,11 @@ export class EnemyManager {
       const dx = camera.position.x - slot.x;
       const dz = camera.position.z - slot.z;
       this.dummy.rotation.set(0, Math.atan2(dx, dz), 0);
+
+      const flashRatio = slot.hitFlashTimer / ENEMY.HIT_FLASH_DURATION;
+      const scale = 1 + flashRatio * ENEMY.HIT_FLASH_SCALE_BOOST;
+      this.dummy.scale.setScalar(scale);
+
       this.dummy.updateMatrix();
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);

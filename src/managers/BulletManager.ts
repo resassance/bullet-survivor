@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { BULLET, ARENA } from '../utils/constants';
+import { BULLET, BULLET_LIMITS, ARENA } from '../utils/constants';
 
 export interface BulletSlot {
   x: number;
   y: number;
   z: number;
   alive: boolean;
+  pierceRemaining: number;
 }
 
 export class BulletManager {
@@ -14,12 +15,16 @@ export class BulletManager {
 
   private dummy = new THREE.Object3D();
   private fireCooldown = 0;
+  private burstShotsRemaining = 0;
+  private burstTimer = 0;
   private nextFreeHint = 0;
 
   private fireRate = BULLET.FIRE_RATE;
   private bulletSpeed = BULLET.SPEED;
   private bulletsPerShot = 1;
+  private pierceCount = 0;
   public damage = BULLET.DAMAGE;
+  public poisonStacks = 0;
 
   constructor() {
     const geometry = new THREE.CapsuleGeometry(
@@ -41,7 +46,7 @@ export class BulletManager {
     this.mesh.frustumCulled = false;
 
     for (let i = 0; i < BULLET.POOL_SIZE; i++) {
-      this.slots.push({ x: 0, y: 0, z: 0, alive: false });
+      this.slots.push({ x: 0, y: 0, z: 0, alive: false, pierceRemaining: 0 });
     }
   }
 
@@ -52,27 +57,34 @@ export class BulletManager {
   }
 
   private handleFiring(delta: number, playerPosition: THREE.Vector3): void {
+    if (this.burstShotsRemaining > 0) {
+      this.burstTimer -= delta;
+      if (this.burstTimer <= 0) {
+        this.burstTimer += BULLET.BURST_INTERVAL;
+        this.fireSingleBullet(playerPosition);
+        this.burstShotsRemaining -= 1;
+      }
+      return;
+    }
+
     this.fireCooldown -= delta;
     if (this.fireCooldown > 0) return;
 
     this.fireCooldown += 1 / this.fireRate;
-    this.spawnVolley(playerPosition);
+    this.fireSingleBullet(playerPosition);
+    this.burstShotsRemaining = this.bulletsPerShot - 1;
+    this.burstTimer = BULLET.BURST_INTERVAL;
   }
 
-  private spawnVolley(playerPosition: THREE.Vector3): void {
-    const count = this.bulletsPerShot;
-    const spread = 0.22;
-    const startOffset = -((count - 1) * spread) / 2;
+  private fireSingleBullet(playerPosition: THREE.Vector3): void {
+    const slot = this.findFreeSlot();
+    if (!slot) return;
 
-    for (let i = 0; i < count; i++) {
-      const slot = this.findFreeSlot();
-      if (!slot) return;
-
-      slot.alive = true;
-      slot.x = playerPosition.x + startOffset + i * spread;
-      slot.y = BULLET.SPAWN_HEIGHT;
-      slot.z = playerPosition.z;
-    }
+    slot.alive = true;
+    slot.x = playerPosition.x + THREE.MathUtils.randFloatSpread(BULLET.VOLLEY_SPREAD);
+    slot.y = BULLET.SPAWN_HEIGHT;
+    slot.z = playerPosition.z;
+    slot.pierceRemaining = this.pierceCount;
   }
 
   private findFreeSlot(): BulletSlot | null {
@@ -97,32 +109,54 @@ export class BulletManager {
   }
 
   public increaseFireRate(multiplier: number): void {
-    this.fireRate *= multiplier;
+    this.fireRate = Math.min(this.fireRate * multiplier, BULLET_LIMITS.MAX_FIRE_RATE);
   }
 
   public addBulletsPerShot(amount: number): void {
-    this.bulletsPerShot += amount;
+    this.bulletsPerShot = Math.min(
+      this.bulletsPerShot + amount,
+      BULLET_LIMITS.MAX_BULLETS_PER_SHOT
+    );
   }
 
   public increaseDamage(amount: number): void {
-    this.damage += amount;
+    this.damage = Math.min(this.damage + amount, BULLET_LIMITS.MAX_DAMAGE);
   }
 
   public increaseBulletSpeed(multiplier: number): void {
-    this.bulletSpeed *= multiplier;
+    this.bulletSpeed = Math.min(
+      this.bulletSpeed * multiplier,
+      BULLET_LIMITS.MAX_BULLET_SPEED
+    );
+  }
+
+  public increasePierce(amount: number): void {
+    this.pierceCount = Math.min(this.pierceCount + amount, BULLET_LIMITS.MAX_PIERCE);
+  }
+
+  public addPoisonStacks(amount: number): void {
+    this.poisonStacks = Math.min(
+      this.poisonStacks + amount,
+      BULLET_LIMITS.MAX_POISON_STACKS
+    );
   }
 
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;
+      slot.pierceRemaining = 0;
     }
     this.mesh.count = 0;
     this.fireCooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
     this.nextFreeHint = 0;
     this.fireRate = BULLET.FIRE_RATE;
     this.bulletSpeed = BULLET.SPEED;
     this.bulletsPerShot = 1;
+    this.pierceCount = 0;
     this.damage = BULLET.DAMAGE;
+    this.poisonStacks = 0;
   }
 
   private syncInstances(): void {

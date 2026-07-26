@@ -115,3 +115,125 @@ html, body {
   background: rgba(155, 127, 255, 0.15);
   box-shadow: 0 0 20px rgba(106, 63, 251, 0.4);
 }
+
+.exp-bar {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 16px) + 18px);
+  left: 16px;
+  right: 16px;
+  max-width: 320px;
+  height: 5px;
+  background: rgba(10, 8, 18, 0.6);
+  border: 1px solid rgba(59, 255, 176, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.exp-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3bffb0, #6a3ffb);
+  transition: width 0.25s ease-out;
+}
+
+.exp-bar-level {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 16px) - 2px);
+  left: 16px;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  color: #8a7fae;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.level-up-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 5, 10, 0.9);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+}
+
+.level-up-screen--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.level-up-content {
+  text-align: center;
+  padding: 24px;
+  max-width: 480px;
+}
+
+.level-up-title {
+  font-family: sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f5f0ff;
+  text-shadow: 0 0 20px rgba(155, 127, 255, 0.6);
+  margin-bottom: 24px;
+  letter-spacing: 0.03em;
+}
+
+.level-up-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.level-up-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 16px 20px;
+  background: rgba(20, 15, 35, 0.7);
+  border: 1px solid rgba(155, 127, 255, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.level-up-card:hover,
+.level-up-card:active {
+  background: rgba(106, 63, 251, 0.2);
+  box-shadow: 0 0 24px rgba(106, 63, 251, 0.35);
+  transform: translateY(-2px);
+}
+
+.level-up-card-name {
+  font-family: sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f5f0ff;
+}
+
+.level-up-card-description {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  color: #b3a6d9;
+}
+
+.hit-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 35%, rgba(255, 0, 51, 0.4) 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hit-flash--active {
+  animation: hit-flash-pulse 0.35s ease-out;
+}
+
+@keyframes hit-flash-pulse {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}

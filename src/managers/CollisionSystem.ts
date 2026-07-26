@@ -1,11 +1,9 @@
-import * as THREE from 'three';
 import { BulletManager } from './BulletManager';
 import { EnemyManager } from './EnemyManager';
-import { BULLET, ENEMY, COLLISION } from '../utils/constants';
+import { BULLET, ENEMY, POISON } from '../utils/constants';
 
 export interface CollisionCallbacks {
   onEnemyKilled?: (x: number, y: number, z: number) => void;
-  onPlayerHit?: () => void;
 }
 
 export class CollisionSystem {
@@ -17,12 +15,8 @@ export class CollisionSystem {
     this.enemyManager = enemyManager;
   }
 
-  public update(
-    playerPosition: THREE.Vector3,
-    callbacks: CollisionCallbacks = {}
-  ): void {
+  public update(callbacks: CollisionCallbacks = {}): void {
     this.resolveBulletsVsEnemies(callbacks.onEnemyKilled);
-    this.resolveEnemiesVsPlayer(playerPosition, callbacks.onPlayerHit);
   }
 
   private resolveBulletsVsEnemies(
@@ -31,6 +25,7 @@ export class CollisionSystem {
     const hitDistSq = (BULLET.RADIUS + ENEMY.COLLISION_RADIUS) ** 2;
     const bullets = this.bulletManager.slots;
     const enemies = this.enemyManager.slots;
+    const poisonStacks = this.bulletManager.poisonStacks;
 
     for (const bullet of bullets) {
       if (!bullet.alive) continue;
@@ -42,34 +37,31 @@ export class CollisionSystem {
         const dz = bullet.z - enemy.z;
         if (dx * dx + dz * dz > hitDistSq) continue;
 
-        bullet.alive = false;
         enemy.health -= this.bulletManager.damage;
+        enemy.hitFlashTimer = ENEMY.HIT_FLASH_DURATION;
+
+        if (poisonStacks > 0) {
+          this.enemyManager.applyPoison(
+            enemy,
+            POISON.DAMAGE_PER_TICK_PER_STACK * poisonStacks,
+            POISON.TICK_COUNT,
+            POISON.TICK_INTERVAL
+          );
+        }
 
         if (enemy.health <= 0) {
           enemy.alive = false;
           onEnemyKilled?.(enemy.x, enemy.y, enemy.z);
         }
 
+        if (bullet.pierceRemaining > 0) {
+          bullet.pierceRemaining -= 1;
+          continue;
+        }
+
+        bullet.alive = false;
         break;
       }
-    }
-  }
-
-  private resolveEnemiesVsPlayer(
-    playerPosition: THREE.Vector3,
-    onPlayerHit?: CollisionCallbacks['onPlayerHit']
-  ): void {
-    const hitDistSq = (COLLISION.PLAYER_RADIUS + ENEMY.COLLISION_RADIUS) ** 2;
-
-    for (const enemy of this.enemyManager.slots) {
-      if (!enemy.alive) continue;
-
-      const dx = playerPosition.x - enemy.x;
-      const dz = playerPosition.z - enemy.z;
-      if (dx * dx + dz * dz > hitDistSq) continue;
-
-      enemy.alive = false;
-      onPlayerHit?.();
     }
   }
 }
