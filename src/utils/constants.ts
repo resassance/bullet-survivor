@@ -134,6 +134,21 @@ export const POISON = {
   TICK_COUNT: 4,
 };
 
+export const PARTICLE = {
+  POOL_SIZE: 200,
+  BURST_COUNT: 8,
+  LIFETIME: 0.45,
+  SPEED_MIN: 2,
+  SPEED_MAX: 5,
+  RADIUS: 0.07,
+  COLOR: 0xff2d55,
+};
+
+export const CAMERA_SHAKE = {
+  HIT_MAGNITUDE: 0.18,
+  HIT_DURATION: 0.25,
+};
+
 export const INPUT = {
   KEYBOARD_SPEED: 8,
 };

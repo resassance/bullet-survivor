@@ -3,6 +3,7 @@ import { SceneManager } from './SceneManager';
 import { CameraManager } from './CameraManager';
 import { RendererManager } from './RendererManager';
 import { InputManager } from './InputManager';
+import { PostProcessing } from './PostProcessing';
 import { GridFloor } from '../world/GridFloor';
 import { Lighting } from '../world/Lighting';
 import { Player } from '../entities/Player';
@@ -10,6 +11,7 @@ import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
 import { GateManager } from '../managers/GateManager';
 import { GemManager } from '../managers/GemManager';
+import { ParticleManager } from '../managers/ParticleManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
 import { HealthManager } from '../managers/HealthManager';
 import { LevelSystem } from '../managers/LevelSystem';
@@ -20,18 +22,20 @@ import { LevelUpOverlay } from '../ui/LevelUpOverlay';
 import { HitFlash } from '../ui/HitFlash';
 import { GATE_MODIFIERS } from '../gameplay/modifiers';
 import { pickRandomSkills } from '../gameplay/skills';
-import { ARENA, PLAYER } from '../utils/constants';
+import { ARENA, PLAYER, CAMERA_SHAKE } from '../utils/constants';
 
 export class Game {
   private sceneManager: SceneManager;
   private cameraManager: CameraManager;
   private rendererManager: RendererManager;
+  private postProcessing: PostProcessing;
   private inputManager: InputManager;
   private player: Player;
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
   private gateManager: GateManager;
   private gemManager: GemManager;
+  private particleManager: ParticleManager;
   private collisionSystem: CollisionSystem;
   private healthManager: HealthManager;
   private levelSystem: LevelSystem;
@@ -53,6 +57,11 @@ export class Game {
     this.sceneManager = new SceneManager();
     this.rendererManager = new RendererManager(canvas);
     this.cameraManager = new CameraManager(this.rendererManager.aspect);
+    this.postProcessing = new PostProcessing(
+      this.rendererManager.renderer,
+      this.sceneManager.scene,
+      this.cameraManager.camera
+    );
     this.inputManager = new InputManager(
       canvas,
       this.cameraManager.camera,
@@ -65,6 +74,7 @@ export class Game {
     this.enemyManager = new EnemyManager();
     this.gateManager = new GateManager();
     this.gemManager = new GemManager();
+    this.particleManager = new ParticleManager();
     this.collisionSystem = new CollisionSystem(
       this.bulletManager,
       this.enemyManager
@@ -100,6 +110,7 @@ export class Game {
     this.sceneManager.add(this.enemyManager.mesh);
     this.sceneManager.add(this.gateManager.group);
     this.sceneManager.add(this.gemManager.mesh);
+    this.sceneManager.add(this.particleManager.mesh);
   }
 
   private bindEvents(): void {
@@ -109,6 +120,7 @@ export class Game {
   private onResize(): void {
     this.rendererManager.resize();
     this.cameraManager.updateAspect(this.rendererManager.aspect);
+    this.postProcessing.resize(window.innerWidth, window.innerHeight);
   }
 
   public start(): void {
@@ -120,15 +132,13 @@ export class Game {
     const delta = this.clock.getDelta();
 
     this.healthManager.update(delta);
+    this.cameraManager.update(delta);
 
     if (!this.isGameOver && !this.isPaused) {
       this.updateGameplay(delta);
     }
 
-    this.rendererManager.render(
-      this.sceneManager.scene,
-      this.cameraManager.camera
-    );
+    this.postProcessing.render(delta);
   };
 
   private updateGameplay(delta: number): void {
@@ -159,11 +169,12 @@ export class Game {
     this.gemManager.update(delta, this.player.mesh.position, (value) =>
       this.handleGemCollected(value)
     );
+    this.particleManager.update(delta);
   }
 
   private killEnemy(x: number, y: number, z: number): void {
-    void y;
     this.gemManager.spawn(x, z);
+    this.particleManager.burst(x, y, z);
   }
 
   private handleGemCollected(value: number): void {
@@ -232,6 +243,7 @@ export class Game {
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.hitFlash.trigger();
+    this.cameraManager.triggerShake(CAMERA_SHAKE.HIT_MAGNITUDE, CAMERA_SHAKE.HIT_DURATION);
 
     if (this.healthManager.dead) {
       this.handleGameOver();
@@ -254,6 +266,7 @@ export class Game {
     this.enemyManager.reset();
     this.gateManager.reset();
     this.gemManager.reset();
+    this.particleManager.reset();
     this.player.resetPosition();
     this.inputManager.reset();
 

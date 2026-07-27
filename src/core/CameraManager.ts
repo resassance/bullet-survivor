@@ -6,6 +6,9 @@ export class CameraManager {
 
   private basePosition: THREE.Vector3;
   private shakeOffset: THREE.Vector3 = new THREE.Vector3();
+  private shakeMagnitude = 0;
+  private shakeDuration = 0;
+  private shakeElapsed = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(
@@ -34,8 +37,30 @@ export class CameraManager {
     this.camera.updateProjectionMatrix();
   }
 
-  public setShakeOffset(offset: THREE.Vector3): void {
-    this.shakeOffset.copy(offset);
+  public triggerShake(magnitude: number, duration: number): void {
+    this.shakeMagnitude = magnitude;
+    this.shakeDuration = duration;
+    this.shakeElapsed = 0;
+  }
+
+  public update(delta: number): void {
+    if (this.shakeElapsed >= this.shakeDuration) {
+      if (this.shakeOffset.lengthSq() > 0) {
+        this.shakeOffset.set(0, 0, 0);
+        this.applyPosition();
+      }
+      return;
+    }
+
+    this.shakeElapsed += delta;
+    const remainingRatio = Math.max(0, 1 - this.shakeElapsed / this.shakeDuration);
+    const currentMagnitude = this.shakeMagnitude * remainingRatio;
+
+    this.shakeOffset.set(
+      (Math.random() * 2 - 1) * currentMagnitude,
+      (Math.random() * 2 - 1) * currentMagnitude,
+      0
+    );
     this.applyPosition();
   }
 
