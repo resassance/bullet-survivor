@@ -18,26 +18,28 @@ export class CoverProp {
       metalness: 0.2,
     });
 
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(COVER.WIDTH, COVER.HEIGHT, COVER.DEPTH),
-      bodyMaterial
-    );
-    body.position.y = COVER.HEIGHT / 2;
-    this.group.add(body);
+    const segmentCount = Math.ceil(COVER.WIDTH / COVER.SEGMENT_WIDTH);
+    const actualSegmentWidth = COVER.WIDTH / segmentCount;
+    const startX = -COVER.WIDTH / 2 + actualSegmentWidth / 2;
 
-    const strapGeometry = new THREE.BoxGeometry(COVER.WIDTH + 0.04, 0.08, COVER.DEPTH + 0.04);
-    const strapTop = new THREE.Mesh(strapGeometry, strapMaterial);
-    strapTop.position.y = COVER.HEIGHT * 0.75;
-    this.group.add(strapTop);
+    for (let i = 0; i < segmentCount; i++) {
+      const segmentX = startX + i * actualSegmentWidth;
 
-    const strapBottom = new THREE.Mesh(strapGeometry, strapMaterial);
-    strapBottom.position.y = COVER.HEIGHT * 0.25;
-    this.group.add(strapBottom);
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(actualSegmentWidth * 0.94, COVER.HEIGHT, COVER.DEPTH),
+        bodyMaterial
+      );
+      body.position.set(segmentX, COVER.HEIGHT / 2, 0);
+      this.group.add(body);
+
+      const strapTop = new THREE.Mesh(
+        new THREE.BoxGeometry(actualSegmentWidth * 0.98, 0.08, COVER.DEPTH + 0.04),
+        strapMaterial
+      );
+      strapTop.position.set(segmentX, COVER.HEIGHT * 0.78, 0);
+      this.group.add(strapTop);
+    }
 
     this.group.position.set(0, 0, COVER.Z_OFFSET);
-  }
-
-  public update(playerX: number): void {
-    this.group.position.x = playerX;
   }
 }

@@ -25,7 +25,6 @@ export class EnemyManager {
   public readonly slots: EnemySlot[] = [];
 
   private dummy = new THREE.Object3D();
-  private spawnCooldown = ENEMY.SPAWN_INTERVAL;
   private elapsedTime = 0;
 
   constructor() {
@@ -78,11 +77,24 @@ export class EnemyManager {
     onBreach: () => void
   ): void {
     this.elapsedTime += delta;
-    this.handleSpawning(delta);
     this.moveEnemies(delta, onBreach);
     this.processPoison(delta, onPoisonKill);
     this.decayHitFlash(delta);
     this.syncInstances(camera);
+  }
+
+  public spawnBatch(count: number): void {
+    for (let i = 0; i < count; i++) {
+      this.spawnEnemy();
+    }
+  }
+
+  public get aliveCount(): number {
+    let count = 0;
+    for (const slot of this.slots) {
+      if (slot.alive) count += 1;
+    }
+    return count;
   }
 
   public applyPoison(slot: EnemySlot, damagePerTick: number, ticks: number, tickInterval: number): void {
@@ -118,20 +130,6 @@ export class EnemyManager {
       if (slot.hitFlashTimer > 0) {
         slot.hitFlashTimer = Math.max(0, slot.hitFlashTimer - delta);
       }
-    }
-  }
-
-  private handleSpawning(delta: number): void {
-    this.spawnCooldown -= delta;
-    if (this.spawnCooldown > 0) return;
-    this.spawnCooldown += ENEMY.SPAWN_INTERVAL;
-
-    const count = THREE.MathUtils.randInt(
-      ENEMY.SPAWN_COUNT_MIN,
-      ENEMY.SPAWN_COUNT_MAX
-    );
-    for (let i = 0; i < count; i++) {
-      this.spawnEnemy();
     }
   }
 
@@ -199,7 +197,6 @@ export class EnemyManager {
       slot.hitFlashTimer = 0;
     }
     this.mesh.count = 0;
-    this.spawnCooldown = ENEMY.SPAWN_INTERVAL;
     this.elapsedTime = 0;
   }
 

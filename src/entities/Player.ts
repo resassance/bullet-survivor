@@ -3,14 +3,20 @@ import { PLAYER } from '../utils/constants';
 import { billboardYAxis } from '../utils/billboard';
 import { createCharacterPoseTexture } from '../utils/characterSprite';
 import type { CharacterPose } from '../utils/characterSprite';
+import { loadCharacterSpriteSet } from '../utils/spriteLoader';
+import { PLAYER_SPRITE_PATHS } from '../gameplay/spriteConfig';
+
+type MovementPose = 'kneel' | 'crouch' | 'run';
 
 export class Player {
   public readonly mesh: THREE.Mesh;
 
-  private textures: Record<CharacterPose, THREE.CanvasTexture>;
+  private textures: Record<CharacterPose, THREE.Texture>;
   private material: THREE.MeshBasicMaterial;
-  private currentPose: CharacterPose = 'kneel';
-  private poseElapsed = 0;
+  private movementPose: MovementPose = 'kneel';
+  private displayedPose: CharacterPose = 'kneel';
+  private crouchHoldTimer = 0;
+  private shootTimer = 0;
   private facingSign = 1;
   private logicalX = 0;
   private recoilTimer = 0;
@@ -21,6 +27,7 @@ export class Player {
       crouch: createCharacterPoseTexture('crouch'),
       run: createCharacterPoseTexture('run'),
       reload: createCharacterPoseTexture('reload'),
+      shoot: createCharacterPoseTexture('shoot'),
     };
 
     const geometry = new THREE.PlaneGeometry(PLAYER.WIDTH, PLAYER.HEIGHT);
@@ -34,6 +41,14 @@ export class Player {
 
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.position.set(0, PLAYER.HEIGHT / 2, PLAYER.SPAWN_Z);
+
+    loadCharacterSpriteSet(PLAYER_SPRITE_PATHS, (pose, texture) => {
+      this.textures[pose] = texture;
+      if (this.displayedPose === pose) {
+        this.material.map = texture;
+        this.material.needsUpdate = true;
+      }
+    });
   }
 
   public update(
@@ -52,19 +67,29 @@ export class Player {
     const movedDistance = this.logicalX - previousLogicalX;
     const speed = Math.abs(movedDistance) / Math.max(delta, 0.0001);
 
-    this.poseElapsed += delta;
-
-    if (isReloading) {
-      this.setPose('reload');
-    } else if (speed > PLAYER.RUN_SPEED_THRESHOLD) {
-      this.setPose('run');
+    if (speed > PLAYER.RUN_SPEED_THRESHOLD) {
+      this.movementPose = 'run';
+      this.crouchHoldTimer = PLAYER.CROUCH_RETURN_DURATION;
       this.facingSign = movedDistance > 0 ? -1 : 1;
-    } else if (this.currentPose === 'run') {
-      this.setPose('crouch');
-    } else if (this.currentPose === 'crouch' && this.poseElapsed < PLAYER.CROUCH_RETURN_DURATION) {
-    } else {
-      this.setPose('kneel');
+    } else if (this.movementPose === 'run') {
+      this.movementPose = 'crouch';
+    } else if (this.movementPose === 'crouch') {
+      this.crouchHoldTimer -= delta;
+      if (this.crouchHoldTimer <= 0) {
+        this.movementPose = 'kneel';
+      }
     }
+
+    if (this.shootTimer > 0) {
+      this.shootTimer = Math.max(0, this.shootTimer - delta);
+    }
+
+    const nextPose: CharacterPose = isReloading
+      ? 'reload'
+      : this.shootTimer > 0
+        ? 'shoot'
+        : this.movementPose;
+    this.setDisplayedPose(nextPose);
 
     if (this.recoilTimer > 0) {
       this.recoilTimer = Math.max(0, this.recoilTimer - delta);
@@ -79,14 +104,14 @@ export class Player {
     billboardYAxis(this.mesh, camera);
   }
 
-  public triggerRecoil(): void {
+  public triggerShot(): void {
     this.recoilTimer = PLAYER.RECOIL_DURATION;
+    this.shootTimer = PLAYER.SHOOT_POSE_DURATION;
   }
 
-  private setPose(pose: CharacterPose): void {
-    if (pose === this.currentPose) return;
-    this.currentPose = pose;
-    this.poseElapsed = 0;
+  private setDisplayedPose(pose: CharacterPose): void {
+    if (pose === this.displayedPose) return;
+    this.displayedPose = pose;
     this.material.map = this.textures[pose];
     this.material.needsUpdate = true;
   }
@@ -94,10 +119,13 @@ export class Player {
   public resetPosition(): void {
     this.logicalX = 0;
     this.recoilTimer = 0;
+    this.shootTimer = 0;
+    this.crouchHoldTimer = 0;
     this.facingSign = 1;
+    this.movementPose = 'kneel';
     this.mesh.position.set(0, PLAYER.HEIGHT / 2, PLAYER.SPAWN_Z);
     this.mesh.scale.set(1, 1, 1);
-    this.setPose('kneel');
+    this.setDisplayedPose('kneel');
   }
 
   public get position(): THREE.Vector3 {

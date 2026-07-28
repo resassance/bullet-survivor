@@ -1,6 +1,42 @@
 import * as THREE from 'three';
 
-export type CharacterPose = 'kneel' | 'crouch' | 'run' | 'reload';
+export type CharacterPose = 'kneel' | 'crouch' | 'run' | 'reload' | 'shoot';
+
+function muzzleFlash(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const length = i % 2 === 0 ? 22 : 12;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(
+      Math.cos(angle) * length + Math.cos(angle + 0.35) * 4,
+      Math.sin(angle) * length + Math.sin(angle + 0.35) * 4
+    );
+    ctx.lineTo(
+      Math.cos(angle) * length + Math.cos(angle - 0.35) * 4,
+      Math.sin(angle) * length + Math.sin(angle - 0.35) * 4
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 function polygon(
   ctx: CanvasRenderingContext2D,
@@ -276,6 +312,52 @@ export function createCharacterPoseTexture(
       ],
       accentColor
     );
+  }
+
+  if (pose === 'shoot') {
+    polygon(ctx, [
+      [-18, 230],
+      [18, 230],
+      [30, 130],
+      [-30, 130],
+    ]);
+    headAndHair(ctx, 95);
+    polygon(ctx, [
+      [-30, 175],
+      [-14, 175],
+      [-8, 285],
+      [-30, 288],
+    ]);
+    polygon(ctx, [
+      [-30, 288],
+      [-8, 285],
+      [4, 292],
+      [-30, 296],
+    ]);
+    polygon(ctx, [
+      [14, 175],
+      [30, 175],
+      [42, 250],
+      [22, 260],
+    ]);
+    polygon(ctx, [
+      [22, 260],
+      [42, 250],
+      [46, 268],
+      [24, 276],
+    ]);
+    polygon(
+      ctx,
+      [
+        [24, 145],
+        [4, 150],
+        [2, 165],
+        [22, 162],
+      ],
+      accentColor
+    );
+    gun(ctx, 40, 152, -8, fillColor, glowColor, gunColor);
+    muzzleFlash(ctx, 88, 148, '#fff5b8');
   }
 
   ctx.restore();

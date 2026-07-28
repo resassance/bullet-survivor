@@ -16,11 +16,14 @@ import { ParticleManager } from '../managers/ParticleManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
 import { HealthManager } from '../managers/HealthManager';
 import { LevelSystem } from '../managers/LevelSystem';
+import { StageManager } from '../managers/StageManager';
 import { HpBar } from '../ui/HpBar';
 import { ExpBar } from '../ui/ExpBar';
 import { AmmoIndicator } from '../ui/AmmoIndicator';
+import { StageIndicator } from '../ui/StageIndicator';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { LevelUpOverlay } from '../ui/LevelUpOverlay';
+import { StageCompleteScreen } from '../ui/StageCompleteScreen';
 import { HitFlash } from '../ui/HitFlash';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
@@ -42,11 +45,14 @@ export class Game {
   private collisionSystem: CollisionSystem;
   private healthManager: HealthManager;
   private levelSystem: LevelSystem;
+  private stageManager: StageManager;
   private hpBar: HpBar;
   private expBar: ExpBar;
   private ammoIndicator: AmmoIndicator;
+  private stageIndicator: StageIndicator;
   private gameOverScreen: GameOverScreen;
   private levelUpOverlay: LevelUpOverlay;
+  private stageCompleteScreen: StageCompleteScreen;
   private hitFlash: HitFlash;
   private clock: THREE.Clock;
   private isGameOver = false;
@@ -87,19 +93,29 @@ export class Game {
 
     this.healthManager = new HealthManager(PLAYER.MAX_HP);
     this.levelSystem = new LevelSystem();
+    this.stageManager = new StageManager();
 
     this.hpBar = new HpBar(container);
     this.expBar = new ExpBar(container);
     this.ammoIndicator = new AmmoIndicator(container);
+    this.stageIndicator = new StageIndicator(container);
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
+    );
+    this.stageCompleteScreen = new StageCompleteScreen(container, () =>
+      this.handleStageContinue()
     );
     this.hitFlash = new HitFlash(container);
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+    this.stageIndicator.update(
+      this.stageManager.currentStage,
+      this.stageManager.spawnedCount,
+      this.stageManager.totalCount
+    );
 
     this.setupWorld();
     this.bindEvents();
@@ -137,7 +153,7 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
-    const delta = Math.min(this.clock.getDelta(), 0.1);
+    const delta = Math.min(this.clock.getDelta(), 0.25);
 
     this.healthManager.update(delta);
     this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
@@ -157,9 +173,8 @@ export class Game {
       this.cameraManager.camera,
       this.bulletManager.isReloading
     );
-    this.coverProp.update(this.player.position.x);
 
-    this.bulletManager.update(delta, this.player.position, () => this.player.triggerRecoil());
+    this.bulletManager.update(delta, this.player.position, () => this.player.triggerShot());
     this.ammoIndicator.update(
       this.bulletManager.ammo,
       this.bulletManager.magazineCapacity,
@@ -172,6 +187,20 @@ export class Game {
       (x, y, z) => this.killEnemy(x, y, z),
       () => this.handlePlayerHit()
     );
+
+    const spawnCount = this.stageManager.update(delta, this.enemyManager.aliveCount);
+    if (spawnCount > 0) {
+      this.enemyManager.spawnBatch(spawnCount);
+    }
+    this.stageIndicator.update(
+      this.stageManager.currentStage,
+      this.stageManager.spawnedCount,
+      this.stageManager.totalCount
+    );
+    if (this.stageManager.isStageCleared) {
+      this.handleStageCleared();
+    }
+
     this.crateManager.update(
       delta,
       this.player.position,
@@ -272,12 +301,29 @@ export class Game {
     this.gameOverScreen.show();
   }
 
+  private handleStageCleared(): void {
+    this.isPaused = true;
+    this.stageCompleteScreen.show(this.stageManager.currentStage);
+  }
+
+  private handleStageContinue(): void {
+    this.stageCompleteScreen.hide();
+    this.stageManager.advanceStage();
+    this.isPaused = false;
+  }
+
   private restart(): void {
     this.healthManager.reset();
     this.levelSystem.reset();
+    this.stageManager.reset();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
+    this.stageIndicator.update(
+      this.stageManager.currentStage,
+      this.stageManager.spawnedCount,
+      this.stageManager.totalCount
+    );
 
     this.bulletManager.reset();
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
@@ -291,6 +337,7 @@ export class Game {
 
     this.levelUpOverlay.hide();
     this.gameOverScreen.hide();
+    this.stageCompleteScreen.hide();
     this.isGameOver = false;
     this.isPaused = false;
   }
