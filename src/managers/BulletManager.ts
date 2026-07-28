@@ -23,6 +23,10 @@ export class BulletManager {
   private bulletSpeed = BULLET.SPEED;
   private bulletsPerShot = 1;
   private pierceCount = 0;
+  private magazineSize = BULLET.MAGAZINE_SIZE;
+  private currentAmmo = BULLET.MAGAZINE_SIZE;
+  private reloadTimer = 0;
+  private reloading = false;
   public damage = BULLET.DAMAGE;
   public poisonStacks = 0;
 
@@ -50,18 +54,35 @@ export class BulletManager {
     }
   }
 
-  public update(delta: number, playerPosition: THREE.Vector3): void {
-    this.handleFiring(delta, playerPosition);
+  public update(
+    delta: number,
+    playerPosition: THREE.Vector3,
+    onShotFired: () => void
+  ): void {
+    this.handleFiring(delta, playerPosition, onShotFired);
     this.moveAndDespawn(delta);
     this.syncInstances();
   }
 
-  private handleFiring(delta: number, playerPosition: THREE.Vector3): void {
+  private handleFiring(
+    delta: number,
+    playerPosition: THREE.Vector3,
+    onShotFired: () => void
+  ): void {
+    if (this.reloading) {
+      this.reloadTimer -= delta;
+      if (this.reloadTimer <= 0) {
+        this.finishReload();
+      }
+      return;
+    }
+
     if (this.burstShotsRemaining > 0) {
       this.burstTimer -= delta;
       if (this.burstTimer <= 0) {
         this.burstTimer += BULLET.BURST_INTERVAL;
         this.fireSingleBullet(playerPosition);
+        onShotFired();
         this.burstShotsRemaining -= 1;
       }
       return;
@@ -70,21 +91,44 @@ export class BulletManager {
     this.fireCooldown -= delta;
     if (this.fireCooldown > 0) return;
 
+    if (this.currentAmmo <= 0) {
+      this.startReload();
+      return;
+    }
+
     this.fireCooldown += 1 / this.fireRate;
     this.fireSingleBullet(playerPosition);
-    this.burstShotsRemaining = this.bulletsPerShot - 1;
+    onShotFired();
+    this.burstShotsRemaining = Math.min(this.bulletsPerShot - 1, this.currentAmmo);
     this.burstTimer = BULLET.BURST_INTERVAL;
   }
 
   private fireSingleBullet(playerPosition: THREE.Vector3): void {
     const slot = this.findFreeSlot();
-    if (!slot) return;
+    if (slot) {
+      slot.alive = true;
+      slot.x = playerPosition.x + THREE.MathUtils.randFloatSpread(BULLET.VOLLEY_SPREAD);
+      slot.y = BULLET.SPAWN_HEIGHT;
+      slot.z = playerPosition.z;
+      slot.pierceRemaining = this.pierceCount;
+    }
 
-    slot.alive = true;
-    slot.x = playerPosition.x + THREE.MathUtils.randFloatSpread(BULLET.VOLLEY_SPREAD);
-    slot.y = BULLET.SPAWN_HEIGHT;
-    slot.z = playerPosition.z;
-    slot.pierceRemaining = this.pierceCount;
+    this.currentAmmo -= 1;
+    if (this.currentAmmo <= 0) {
+      this.startReload();
+    }
+  }
+
+  private startReload(): void {
+    if (this.reloading) return;
+    this.reloading = true;
+    this.reloadTimer = BULLET.RELOAD_DURATION;
+    this.burstShotsRemaining = 0;
+  }
+
+  private finishReload(): void {
+    this.reloading = false;
+    this.currentAmmo = this.magazineSize;
   }
 
   private findFreeSlot(): BulletSlot | null {
@@ -141,6 +185,23 @@ export class BulletManager {
     );
   }
 
+  public get isReloading(): boolean {
+    return this.reloading;
+  }
+
+  public get reloadProgress(): number {
+    if (!this.reloading) return 1;
+    return 1 - this.reloadTimer / BULLET.RELOAD_DURATION;
+  }
+
+  public get ammo(): number {
+    return this.currentAmmo;
+  }
+
+  public get magazineCapacity(): number {
+    return this.magazineSize;
+  }
+
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;
@@ -157,6 +218,10 @@ export class BulletManager {
     this.pierceCount = 0;
     this.damage = BULLET.DAMAGE;
     this.poisonStacks = 0;
+    this.magazineSize = BULLET.MAGAZINE_SIZE;
+    this.currentAmmo = BULLET.MAGAZINE_SIZE;
+    this.reloading = false;
+    this.reloadTimer = 0;
   }
 
   private syncInstances(): void {

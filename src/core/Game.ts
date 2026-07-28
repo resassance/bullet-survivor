@@ -7,9 +7,10 @@ import { PostProcessing } from './PostProcessing';
 import { GridFloor } from '../world/GridFloor';
 import { Lighting } from '../world/Lighting';
 import { Player } from '../entities/Player';
+import { CoverProp } from '../entities/CoverProp';
 import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
-import { GateManager } from '../managers/GateManager';
+import { SupplyCrateManager } from '../managers/SupplyCrateManager';
 import { GemManager } from '../managers/GemManager';
 import { ParticleManager } from '../managers/ParticleManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
@@ -17,10 +18,11 @@ import { HealthManager } from '../managers/HealthManager';
 import { LevelSystem } from '../managers/LevelSystem';
 import { HpBar } from '../ui/HpBar';
 import { ExpBar } from '../ui/ExpBar';
+import { AmmoIndicator } from '../ui/AmmoIndicator';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { LevelUpOverlay } from '../ui/LevelUpOverlay';
 import { HitFlash } from '../ui/HitFlash';
-import { GATE_MODIFIERS } from '../gameplay/modifiers';
+import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { ARENA, PLAYER, CAMERA_SHAKE } from '../utils/constants';
 
@@ -31,9 +33,10 @@ export class Game {
   private postProcessing: PostProcessing;
   private inputManager: InputManager;
   private player: Player;
+  private coverProp: CoverProp;
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
-  private gateManager: GateManager;
+  private crateManager: SupplyCrateManager;
   private gemManager: GemManager;
   private particleManager: ParticleManager;
   private collisionSystem: CollisionSystem;
@@ -41,6 +44,7 @@ export class Game {
   private levelSystem: LevelSystem;
   private hpBar: HpBar;
   private expBar: ExpBar;
+  private ammoIndicator: AmmoIndicator;
   private gameOverScreen: GameOverScreen;
   private levelUpOverlay: LevelUpOverlay;
   private hitFlash: HitFlash;
@@ -70,9 +74,10 @@ export class Game {
     this.clock = new THREE.Clock();
 
     this.player = new Player();
+    this.coverProp = new CoverProp();
     this.bulletManager = new BulletManager();
     this.enemyManager = new EnemyManager();
-    this.gateManager = new GateManager();
+    this.crateManager = new SupplyCrateManager();
     this.gemManager = new GemManager();
     this.particleManager = new ParticleManager();
     this.collisionSystem = new CollisionSystem(
@@ -85,6 +90,7 @@ export class Game {
 
     this.hpBar = new HpBar(container);
     this.expBar = new ExpBar(container);
+    this.ammoIndicator = new AmmoIndicator(container);
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
@@ -93,6 +99,7 @@ export class Game {
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
+    this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
 
     this.setupWorld();
     this.bindEvents();
@@ -106,9 +113,10 @@ export class Game {
     this.sceneManager.add(lighting.group);
 
     this.sceneManager.add(this.player.mesh);
+    this.sceneManager.add(this.coverProp.group);
     this.sceneManager.add(this.bulletManager.mesh);
     this.sceneManager.add(this.enemyManager.mesh);
-    this.sceneManager.add(this.gateManager.group);
+    this.sceneManager.add(this.crateManager.group);
     this.sceneManager.add(this.gemManager.mesh);
     this.sceneManager.add(this.particleManager.mesh);
   }
@@ -129,10 +137,10 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
-    const delta = this.clock.getDelta();
+    const delta = Math.min(this.clock.getDelta(), 0.1);
 
     this.healthManager.update(delta);
-    this.cameraManager.update(delta);
+    this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
 
     if (!this.isGameOver && !this.isPaused) {
       this.updateGameplay(delta);
@@ -146,27 +154,36 @@ export class Game {
     this.player.update(
       delta,
       this.inputManager.targetX,
-      this.cameraManager.camera
+      this.cameraManager.camera,
+      this.bulletManager.isReloading
     );
-    this.bulletManager.update(delta, this.player.mesh.position);
+    this.coverProp.update(this.player.position.x);
+
+    this.bulletManager.update(delta, this.player.position, () => this.player.triggerRecoil());
+    this.ammoIndicator.update(
+      this.bulletManager.ammo,
+      this.bulletManager.magazineCapacity,
+      this.bulletManager.isReloading
+    );
+
     this.enemyManager.update(
       delta,
       this.cameraManager.camera,
       (x, y, z) => this.killEnemy(x, y, z),
       () => this.handlePlayerHit()
     );
-    this.gateManager.update(
+    this.crateManager.update(
       delta,
-      this.player.mesh.position,
+      this.player.position,
       this.bulletManager.slots,
-      (modifierIndex) => this.applyGateModifier(modifierIndex)
+      (modifierIndex) => this.applyCrateModifier(modifierIndex)
     );
 
     this.collisionSystem.update({
       onEnemyKilled: (x, y, z) => this.killEnemy(x, y, z),
     });
 
-    this.gemManager.update(delta, this.player.mesh.position, (value) =>
+    this.gemManager.update(delta, this.player.position, (value) =>
       this.handleGemCollected(value)
     );
     this.particleManager.update(delta);
@@ -218,8 +235,8 @@ export class Game {
     }
   }
 
-  private applyGateModifier(modifierIndex: number): void {
-    const modifier = GATE_MODIFIERS[modifierIndex];
+  private applyCrateModifier(modifierIndex: number): void {
+    const modifier = CRATE_MODIFIERS[modifierIndex];
 
     switch (modifier.id) {
       case 'multishot':
@@ -263,8 +280,10 @@ export class Game {
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
 
     this.bulletManager.reset();
+    this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+
     this.enemyManager.reset();
-    this.gateManager.reset();
+    this.crateManager.reset();
     this.gemManager.reset();
     this.particleManager.reset();
     this.player.resetPosition();

@@ -237,3 +237,30 @@ html, body {
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+.ammo-indicator {
+  position: absolute;
+  bottom: env(safe-area-inset-bottom, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: #d6c9ff;
+  background: rgba(10, 8, 18, 0.6);
+  border: 1px solid rgba(155, 127, 255, 0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  pointer-events: none;
+}
+
+.ammo-indicator--reloading {
+  color: #ff9db3;
+  border-color: rgba(255, 59, 110, 0.5);
+  animation: ammo-reload-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes ammo-reload-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
