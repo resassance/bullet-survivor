@@ -74,26 +74,20 @@ export const COVER = {
 
 export const BULLET = {
   POOL_SIZE: 300,
-  SPEED: 24,
-  FIRE_RATE: 1.4,
   BURST_INTERVAL: 0.09,
-  VOLLEY_SPREAD: 0.16,
   RADIUS: 0.08,
   LENGTH: 0.4,
   SPAWN_HEIGHT: 1.3,
-  COLOR: 0xff3b6e,
-  DAMAGE: 1,
-  MAGAZINE_SIZE: 6,
-  RELOAD_DURATION: 1.7,
 };
 
 export const BULLET_LIMITS = {
   MAX_BULLETS_PER_SHOT: 3,
-  MAX_FIRE_RATE: 3,
+  MAX_FIRE_RATE: 6,
   MAX_DAMAGE: 4,
   MAX_BULLET_SPEED: 36,
   MAX_PIERCE: 3,
   MAX_POISON_STACKS: 5,
+  MAX_MAGAZINE_SIZE: 14,
 };
 
 export const ENEMY = {
@@ -112,7 +106,7 @@ export const ENEMY = {
   COLLISION_RADIUS: 0.6,
   SPAWN_X_SPREAD: 9,
   SPAWN_Z_JITTER: 3,
-  BREACH_Z: 1.2,
+  BREACH_Z: -1.2,
   HIT_FLASH_DURATION: 0.12,
   HIT_FLASH_SCALE_BOOST: 0.35,
 };
@@ -180,6 +174,49 @@ export const PARTICLE = {
 export const CAMERA_SHAKE = {
   HIT_MAGNITUDE: 0.18,
   HIT_DURATION: 0.25,
+};
+
+export const LIGHTNING = {
+  COOLDOWN: 3,
+  DAMAGE: 3,
+  SEGMENT_COUNT: 6,
+  RANGE_Z: -26,
+  JITTER_X: 1.6,
+  HIT_RADIUS: 0.9,
+  VISIBLE_DURATION: 0.15,
+  COLOR: 0xbfe0ff,
+};
+
+export const WIND_SLASH = {
+  COOLDOWN: 2.4,
+  DAMAGE: 1.5,
+  PROJECTILE_COUNT: 3,
+  SPEED: 14,
+  SPREAD: 0.9,
+  RADIUS: 0.35,
+  PIERCE: 20,
+  LIFETIME: 2.5,
+  POOL_SIZE: 30,
+  COLOR: 0x3bffb0,
+};
+
+export const GRENADE = {
+  COOLDOWN: 4,
+  DAMAGE: 2,
+  PROJECTILE_COUNT: 3,
+  SPEED: 12,
+  SPREAD: 1.4,
+  FUSE_DURATION: 1.1,
+  EXPLOSION_RADIUS: 2.2,
+  POOL_SIZE: 12,
+  COLOR: 0xffa23b,
+};
+
+export const SUBTITLE = {
+  MIN_INTERVAL: 14,
+  MAX_INTERVAL: 24,
+  DISPLAY_DURATION: 4,
+  SWAY_INTERVAL: 0.6,
 };
 
 export const INPUT = {

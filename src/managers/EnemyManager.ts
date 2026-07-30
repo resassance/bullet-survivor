@@ -190,6 +190,12 @@ export class EnemyManager {
     }
   }
 
+  public clearAllAlive(): void {
+    for (const slot of this.slots) {
+      slot.alive = false;
+    }
+  }
+
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;

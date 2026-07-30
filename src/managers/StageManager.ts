@@ -36,6 +36,11 @@ export class StageManager {
     this.stageCleared = false;
   }
 
+  public forceClear(): void {
+    this.enemiesSpawnedThisStage = this.totalEnemiesForStage(this.stage);
+    this.stageCleared = true;
+  }
+
   public get isStageCleared(): boolean {
     return this.stageCleared;
   }

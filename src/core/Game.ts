@@ -13,6 +13,7 @@ import { EnemyManager } from '../managers/EnemyManager';
 import { SupplyCrateManager } from '../managers/SupplyCrateManager';
 import { GemManager } from '../managers/GemManager';
 import { ParticleManager } from '../managers/ParticleManager';
+import { SpecialWeaponManager } from '../managers/SpecialWeaponManager';
 import { CollisionSystem } from '../managers/CollisionSystem';
 import { HealthManager } from '../managers/HealthManager';
 import { LevelSystem } from '../managers/LevelSystem';
@@ -21,13 +22,18 @@ import { HpBar } from '../ui/HpBar';
 import { ExpBar } from '../ui/ExpBar';
 import { AmmoIndicator } from '../ui/AmmoIndicator';
 import { StageIndicator } from '../ui/StageIndicator';
+import { WeaponIndicator } from '../ui/WeaponIndicator';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { LevelUpOverlay } from '../ui/LevelUpOverlay';
 import { StageCompleteScreen } from '../ui/StageCompleteScreen';
 import { HitFlash } from '../ui/HitFlash';
+import { SubtitleBar } from '../ui/SubtitleBar';
+import { DialogueScreen } from '../ui/DialogueScreen';
+import { DebugPanel } from '../ui/DebugPanel';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
-import { ARENA, PLAYER, CAMERA_SHAKE } from '../utils/constants';
+import { pickRandomSubtitle, pickInterstageDialogue } from '../gameplay/dialogueLines';
+import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE } from '../utils/constants';
 
 export class Game {
   private sceneManager: SceneManager;
@@ -42,6 +48,7 @@ export class Game {
   private crateManager: SupplyCrateManager;
   private gemManager: GemManager;
   private particleManager: ParticleManager;
+  private specialWeaponManager: SpecialWeaponManager;
   private collisionSystem: CollisionSystem;
   private healthManager: HealthManager;
   private levelSystem: LevelSystem;
@@ -50,13 +57,17 @@ export class Game {
   private expBar: ExpBar;
   private ammoIndicator: AmmoIndicator;
   private stageIndicator: StageIndicator;
+  private weaponIndicator: WeaponIndicator;
   private gameOverScreen: GameOverScreen;
   private levelUpOverlay: LevelUpOverlay;
   private stageCompleteScreen: StageCompleteScreen;
   private hitFlash: HitFlash;
+  private subtitleBar: SubtitleBar;
+  private dialogueScreen: DialogueScreen;
   private clock: THREE.Clock;
   private isGameOver = false;
   private isPaused = false;
+  private subtitleTimer: number;
 
   constructor(canvas: HTMLCanvasElement) {
     const container = canvas.parentElement;
@@ -86,6 +97,7 @@ export class Game {
     this.crateManager = new SupplyCrateManager();
     this.gemManager = new GemManager();
     this.particleManager = new ParticleManager();
+    this.specialWeaponManager = new SpecialWeaponManager();
     this.collisionSystem = new CollisionSystem(
       this.bulletManager,
       this.enemyManager
@@ -99,6 +111,7 @@ export class Game {
     this.expBar = new ExpBar(container);
     this.ammoIndicator = new AmmoIndicator(container);
     this.stageIndicator = new StageIndicator(container);
+    this.weaponIndicator = new WeaponIndicator(container);
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
@@ -107,6 +120,13 @@ export class Game {
       this.handleStageContinue()
     );
     this.hitFlash = new HitFlash(container);
+    this.subtitleBar = new SubtitleBar(container);
+    this.dialogueScreen = new DialogueScreen(container);
+    new DebugPanel(container, {
+      onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
+      onSkipStage: () => this.debugSkipStage(),
+    });
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
@@ -116,6 +136,7 @@ export class Game {
       this.stageManager.spawnedCount,
       this.stageManager.totalCount
     );
+    this.subtitleTimer = THREE.MathUtils.randFloat(SUBTITLE.MIN_INTERVAL, SUBTITLE.MAX_INTERVAL);
 
     this.setupWorld();
     this.bindEvents();
@@ -135,6 +156,7 @@ export class Game {
     this.sceneManager.add(this.crateManager.group);
     this.sceneManager.add(this.gemManager.mesh);
     this.sceneManager.add(this.particleManager.mesh);
+    this.sceneManager.add(this.specialWeaponManager.group);
   }
 
   private bindEvents(): void {
@@ -180,12 +202,25 @@ export class Game {
       this.bulletManager.magazineCapacity,
       this.bulletManager.isReloading
     );
+    this.weaponIndicator.update(
+      this.bulletManager.weaponName,
+      this.specialWeaponSummaryName(),
+      this.specialWeaponManager.cooldownRatio
+    );
 
     this.enemyManager.update(
       delta,
       this.cameraManager.camera,
       (x, y, z) => this.killEnemy(x, y, z),
       () => this.handlePlayerHit()
+    );
+
+    this.specialWeaponManager.update(
+      delta,
+      this.player.position,
+      this.enemyManager,
+      (x, y, z) => this.killEnemy(x, y, z),
+      (x, y, z) => this.particleManager.burst(x, y, z)
     );
 
     const spawnCount = this.stageManager.update(delta, this.enemyManager.aliveCount);
@@ -216,6 +251,24 @@ export class Game {
       this.handleGemCollected(value)
     );
     this.particleManager.update(delta);
+
+    this.updateSubtitleTimer(delta);
+  }
+
+  private specialWeaponSummaryName(): string | null {
+    const id = this.specialWeaponManager.equippedId;
+    if (!id) return null;
+    if (id === 'lightning') return 'Молния';
+    if (id === 'windSlash') return 'Ветер';
+    return 'Бомбы';
+  }
+
+  private updateSubtitleTimer(delta: number): void {
+    this.subtitleTimer -= delta;
+    if (this.subtitleTimer <= 0) {
+      this.subtitleTimer = THREE.MathUtils.randFloat(SUBTITLE.MIN_INTERVAL, SUBTITLE.MAX_INTERVAL);
+      this.subtitleBar.show(pickRandomSubtitle());
+    }
   }
 
   private killEnemy(x: number, y: number, z: number): void {
@@ -232,6 +285,12 @@ export class Game {
     );
 
     if (this.levelSystem.consumePendingLevelUp()) {
+      this.bulletManager.increaseMagazineSize(1);
+      this.ammoIndicator.update(
+        this.bulletManager.ammo,
+        this.bulletManager.magazineCapacity,
+        this.bulletManager.isReloading
+      );
       this.triggerLevelUp();
     }
   }
@@ -246,6 +305,7 @@ export class Game {
     this.levelUpOverlay.hide();
 
     if (this.levelSystem.consumePendingLevelUp()) {
+      this.bulletManager.increaseMagazineSize(1);
       this.triggerLevelUp();
       return;
     }
@@ -308,8 +368,16 @@ export class Game {
 
   private handleStageContinue(): void {
     this.stageCompleteScreen.hide();
-    this.stageManager.advanceStage();
-    this.isPaused = false;
+    const dialogue = pickInterstageDialogue(this.stageManager.currentStage);
+    this.dialogueScreen.play(dialogue, () => {
+      this.stageManager.advanceStage();
+      this.isPaused = false;
+    });
+  }
+
+  private debugSkipStage(): void {
+    this.enemyManager.clearAllAlive();
+    this.stageManager.forceClear();
   }
 
   private restart(): void {
@@ -332,6 +400,7 @@ export class Game {
     this.crateManager.reset();
     this.gemManager.reset();
     this.particleManager.reset();
+    this.specialWeaponManager.reset();
     this.player.resetPosition();
     this.inputManager.reset();
 
