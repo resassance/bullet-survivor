@@ -7,6 +7,7 @@ export interface BulletSlot {
   x: number;
   y: number;
   z: number;
+  vx: number;
   alive: boolean;
   pierceRemaining: number;
 }
@@ -54,7 +55,7 @@ export class BulletManager {
     this.mesh.frustumCulled = false;
 
     for (let i = 0; i < BULLET.POOL_SIZE; i++) {
-      this.slots.push({ x: 0, y: 0, z: 0, alive: false, pierceRemaining: 0 });
+      this.slots.push({ x: 0, y: 0, z: 0, vx: 0, alive: false, pierceRemaining: 0 });
     }
   }
 
@@ -125,15 +126,16 @@ export class BulletManager {
       const slot = this.findFreeSlot();
       if (!slot) continue;
 
-      const offset =
+      const vx =
         pelletCount === 1
           ? THREE.MathUtils.randFloatSpread(spread)
-          : (i / (pelletCount - 1) - 0.5) * spread;
+          : (i / (pelletCount - 1) - 0.5) * spread * this.bulletSpeed;
 
       slot.alive = true;
-      slot.x = playerPosition.x + offset;
+      slot.x = playerPosition.x;
       slot.y = BULLET.SPAWN_HEIGHT;
       slot.z = playerPosition.z;
+      slot.vx = vx;
       slot.pierceRemaining = this.pierceCount;
     }
 
@@ -170,6 +172,7 @@ export class BulletManager {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
       slot.z -= this.bulletSpeed * delta;
+      slot.x += slot.vx * delta;
       if (slot.z < ARENA.BULLET_DESPAWN_Z) {
         slot.alive = false;
       }
@@ -257,6 +260,10 @@ export class BulletManager {
 
   public get weaponName(): string {
     return this.weapon.name;
+  }
+
+  public get weaponId(): string {
+    return this.weapon.id;
   }
 
   public reset(): void {

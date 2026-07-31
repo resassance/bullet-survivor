@@ -269,6 +269,8 @@ export class SpecialWeaponManager {
     onKill: (x: number, y: number, z: number) => void,
     onExplode: (x: number, y: number, z: number) => void
   ): void {
+    const radiusSq = GRENADE.EXPLOSION_RADIUS * GRENADE.EXPLOSION_RADIUS;
+
     for (let i = 0; i < this.grenadeSlots.length; i++) {
       const slot = this.grenadeSlots[i];
       if (!slot.alive) continue;
@@ -276,7 +278,9 @@ export class SpecialWeaponManager {
       slot.z += slot.vz * delta;
       this.grenadeFuses[i] -= delta;
 
-      if (this.grenadeFuses[i] <= 0) {
+      const proximityTriggered = this.hasEnemyWithinRadius(slot, enemyManager, radiusSq);
+
+      if (proximityTriggered || this.grenadeFuses[i] <= 0) {
         this.explodeGrenade(slot, enemyManager, onKill);
         onExplode(slot.x, slot.y, slot.z);
         slot.alive = false;
@@ -284,6 +288,20 @@ export class SpecialWeaponManager {
     }
 
     this.syncProjectileInstances(this.grenadeMesh, this.grenadeSlots, this.grenadeDummy);
+  }
+
+  private hasEnemyWithinRadius(
+    slot: ProjectileSlot,
+    enemyManager: EnemyManager,
+    radiusSq: number
+  ): boolean {
+    for (const enemy of enemyManager.slots) {
+      if (!enemy.alive) continue;
+      const dx = enemy.x - slot.x;
+      const dz = enemy.z - slot.z;
+      if (dx * dx + dz * dz <= radiusSq) return true;
+    }
+    return false;
   }
 
   private explodeGrenade(

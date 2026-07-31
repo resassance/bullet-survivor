@@ -30,9 +30,16 @@ import { HitFlash } from '../ui/HitFlash';
 import { SubtitleBar } from '../ui/SubtitleBar';
 import { DialogueScreen } from '../ui/DialogueScreen';
 import { DebugPanel } from '../ui/DebugPanel';
+import { CampScreen } from '../ui/CampScreen';
+import { ArchiveScreen } from '../ui/ArchiveScreen';
+import { PauseButton } from '../ui/PauseButton';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
-import { pickRandomSubtitle, pickInterstageDialogue } from '../gameplay/dialogueLines';
+import {
+  pickRandomSubtitle,
+  pickIntroDialogue,
+  pickVictoryDialogue,
+} from '../gameplay/dialogueLines';
 import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE } from '../utils/constants';
 
 export class Game {
@@ -64,6 +71,10 @@ export class Game {
   private hitFlash: HitFlash;
   private subtitleBar: SubtitleBar;
   private dialogueScreen: DialogueScreen;
+  private campScreen: CampScreen;
+  private archiveScreen: ArchiveScreen;
+  private campReturnConfig: { label: string; onPrimary: () => void } | null = null;
+  private pauseButton: PauseButton;
   private clock: THREE.Clock;
   private isGameOver = false;
   private isPaused = false;
@@ -122,6 +133,12 @@ export class Game {
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
     this.dialogueScreen = new DialogueScreen(container);
+    this.campScreen = new CampScreen(container, {
+      onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onArchiveOpen: () => this.openArchive(),
+    });
+    this.archiveScreen = new ArchiveScreen(container, () => this.closeArchive());
+    this.pauseButton = new PauseButton(container, () => this.openCampMidStage());
     new DebugPanel(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
       onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
@@ -140,6 +157,9 @@ export class Game {
 
     this.setupWorld();
     this.bindEvents();
+
+    this.isPaused = true;
+    this.showCampForNextStage();
   }
 
   private setupWorld(): void {
@@ -179,6 +199,7 @@ export class Game {
 
     this.healthManager.update(delta);
     this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
+    this.pauseButton.setVisible(!this.isGameOver && !this.isPaused);
 
     if (!this.isGameOver && !this.isPaused) {
       this.updateGameplay(delta);
@@ -368,11 +389,54 @@ export class Game {
 
   private handleStageContinue(): void {
     this.stageCompleteScreen.hide();
-    const dialogue = pickInterstageDialogue(this.stageManager.currentStage);
+    const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.stageManager.advanceStage();
+      this.showCampForNextStage();
+    });
+  }
+
+  private showCampForNextStage(): void {
+    this.showCamp('сюжетка', () => this.launchStageFromCamp());
+  }
+
+  private launchStageFromCamp(): void {
+    this.campScreen.hide();
+    const dialogue = pickIntroDialogue(this.stageManager.currentStage);
+    this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
     });
+  }
+
+  private openCampMidStage(): void {
+    this.isPaused = true;
+    this.showCamp('продолжить бой', () => this.closeCampMidStage());
+  }
+
+  private closeCampMidStage(): void {
+    this.campScreen.hide();
+    this.isPaused = false;
+  }
+
+  private showCamp(primaryLabel: string, onPrimary: () => void): void {
+    this.campReturnConfig = { label: primaryLabel, onPrimary };
+    this.campScreen.show(primaryLabel, onPrimary, this.bulletManager.weaponId);
+  }
+
+  private openArchive(): void {
+    this.campScreen.hide();
+    this.archiveScreen.show();
+  }
+
+  private closeArchive(): void {
+    this.archiveScreen.hide();
+    if (this.campReturnConfig) {
+      this.campScreen.show(
+        this.campReturnConfig.label,
+        this.campReturnConfig.onPrimary,
+        this.bulletManager.weaponId
+      );
+    }
   }
 
   private debugSkipStage(): void {
@@ -408,6 +472,8 @@ export class Game {
     this.gameOverScreen.hide();
     this.stageCompleteScreen.hide();
     this.isGameOver = false;
-    this.isPaused = false;
+
+    this.isPaused = true;
+    this.showCampForNextStage();
   }
 }

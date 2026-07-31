@@ -4,9 +4,9 @@ import type { DialogueLine } from '../gameplay/dialogueLines';
 export class DialogueScreen {
   private element: HTMLDivElement;
   private portraitContainer: HTMLDivElement;
-  private nameElement: HTMLSpanElement;
+  private nameElement: HTMLElement;
   private textElement: HTMLElement;
-  private hintElement: HTMLSpanElement;
+  private hintElement: HTMLElement;
   private lines: DialogueLine[] = [];
   private lineIndex = 0;
   private onComplete: (() => void) | null = null;
@@ -15,22 +15,22 @@ export class DialogueScreen {
     this.element = document.createElement('div');
     this.element.className = 'dialogue-screen';
     this.element.innerHTML = `
-      <div class="dialogue-content">
+      <div class="dialogue-stage">
         <div class="dialogue-portrait"></div>
-        <div class="dialogue-text-block">
-          <span class="dialogue-name"></span>
-          <p class="dialogue-text"></p>
-          <span class="dialogue-hint">нажми, чтобы продолжить</span>
-        </div>
+      </div>
+      <div class="dialogue-textbox">
+        <span class="dialogue-name"></span>
+        <p class="dialogue-text"></p>
+        <span class="dialogue-hint">нажми, чтобы продолжить</span>
       </div>
     `;
 
     this.portraitContainer = this.element.querySelector(
       '.dialogue-portrait'
     ) as HTMLDivElement;
-    this.nameElement = this.element.querySelector('.dialogue-name') as HTMLSpanElement;
+    this.nameElement = this.element.querySelector('.dialogue-name') as HTMLElement;
     this.textElement = this.element.querySelector('.dialogue-text') as HTMLElement;
-    this.hintElement = this.element.querySelector('.dialogue-hint') as HTMLSpanElement;
+    this.hintElement = this.element.querySelector('.dialogue-hint') as HTMLElement;
 
     this.element.addEventListener('click', () => this.advance());
 

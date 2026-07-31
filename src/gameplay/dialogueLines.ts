@@ -12,7 +12,22 @@ export const COMBAT_SUBTITLES: DialogueLine[] = [
   { speaker: 'Юки', text: 'Что бы это ни было... оно не должно пройти.', color: '#9b7fff' },
 ];
 
-export const INTERSTAGE_DIALOGUES: DialogueLine[][] = [
+export const INTRO_DIALOGUES: DialogueLine[][] = [
+  [
+    { speaker: 'Рен', text: 'Готова?', color: '#3bffb0' },
+    { speaker: 'Юки', text: 'Всегда готова.', color: '#9b7fff' },
+  ],
+  [
+    { speaker: 'Юки', text: 'Чувствуешь? Их там много.', color: '#9b7fff' },
+    { speaker: 'Рен', text: 'Значит, будет весело.', color: '#3bffb0' },
+  ],
+  [
+    { speaker: 'Рен', text: 'Дальше только хуже.', color: '#3bffb0' },
+    { speaker: 'Юки', text: 'Я знаю. Идём.', color: '#9b7fff' },
+  ],
+];
+
+export const VICTORY_DIALOGUES: DialogueLine[][] = [
   [
     { speaker: 'Юки', text: 'Ну и ночка выдалась...', color: '#9b7fff' },
     { speaker: 'Рен', text: 'Это ещё не конец.', color: '#3bffb0' },
@@ -34,6 +49,10 @@ export function pickRandomSubtitle(): DialogueLine {
   return COMBAT_SUBTITLES[Math.floor(Math.random() * COMBAT_SUBTITLES.length)];
 }
 
-export function pickInterstageDialogue(stage: number): DialogueLine[] {
-  return INTERSTAGE_DIALOGUES[(stage - 1) % INTERSTAGE_DIALOGUES.length];
+export function pickIntroDialogue(stage: number): DialogueLine[] {
+  return INTRO_DIALOGUES[(stage - 1) % INTRO_DIALOGUES.length];
+}
+
+export function pickVictoryDialogue(stage: number): DialogueLine[] {
+  return VICTORY_DIALOGUES[(stage - 1) % VICTORY_DIALOGUES.length];
 }
