@@ -223,6 +223,12 @@ export const INPUT = {
   KEYBOARD_SPEED: 8,
 };
 
+export const CAMP_CAMERA = {
+  BLEND_SPEED: 3.2,
+  OVERVIEW_POSITION: { x: 0, y: 6.5, z: 13 },
+  OVERVIEW_LOOK_AT: { x: 0, y: 1.6, z: 3.2 },
+};
+
 export const RENDERER = {
   MAX_PIXEL_RATIO: 2,
   ANTIALIAS: true,

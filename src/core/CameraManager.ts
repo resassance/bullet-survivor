@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { CAMERA, CAMERA_RELOAD_FOCUS } from '../utils/constants';
+import { CAMERA, CAMERA_RELOAD_FOCUS, CAMP_CAMERA } from '../utils/constants';
+
+interface Vec3Like {
+  x: number;
+  y: number;
+  z: number;
+}
 
 export class CameraManager {
   public readonly camera: THREE.PerspectiveCamera;
@@ -11,6 +17,11 @@ export class CameraManager {
   private shakeDuration = 0;
   private shakeElapsed = 0;
   private reloadBlend = 0;
+
+  private campActive = false;
+  private campBlend = 0;
+  private campTargetPosition: THREE.Vector3;
+  private campTargetLookAt: THREE.Vector3;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(
@@ -31,6 +42,17 @@ export class CameraManager {
       CAMERA.LOOK_AT.z
     );
 
+    this.campTargetPosition = new THREE.Vector3(
+      CAMP_CAMERA.OVERVIEW_POSITION.x,
+      CAMP_CAMERA.OVERVIEW_POSITION.y,
+      CAMP_CAMERA.OVERVIEW_POSITION.z
+    );
+    this.campTargetLookAt = new THREE.Vector3(
+      CAMP_CAMERA.OVERVIEW_LOOK_AT.x,
+      CAMP_CAMERA.OVERVIEW_LOOK_AT.y,
+      CAMP_CAMERA.OVERVIEW_LOOK_AT.z
+    );
+
     this.camera.position.copy(this.basePosition);
     this.camera.lookAt(this.baseLookAt);
   }
@@ -44,6 +66,17 @@ export class CameraManager {
     this.shakeMagnitude = magnitude;
     this.shakeDuration = duration;
     this.shakeElapsed = 0;
+  }
+
+  /** Enables/disables blending toward the camp camera target. */
+  public setCampActive(active: boolean): void {
+    this.campActive = active;
+  }
+
+  /** Sets the camera position/lookAt the camp blend dollies toward (overview or a station). */
+  public setCampTarget(position: Vec3Like, lookAt: Vec3Like): void {
+    this.campTargetPosition.set(position.x, position.y, position.z);
+    this.campTargetLookAt.set(lookAt.x, lookAt.y, lookAt.z);
   }
 
   public update(delta: number, playerX: number, isReloading: boolean): void {
@@ -61,10 +94,17 @@ export class CameraManager {
     const reloadLookAt = new THREE.Vector3(playerX, CAMERA_RELOAD_FOCUS.LOOK_AT_Y, 0);
     const blendedLookAt = this.baseLookAt.clone().lerp(reloadLookAt, this.reloadBlend);
 
+    const campBlendTarget = this.campActive ? 1 : 0;
+    const campSmoothing = 1 - Math.exp(-CAMP_CAMERA.BLEND_SPEED * delta);
+    this.campBlend += (campBlendTarget - this.campBlend) * campSmoothing;
+
+    const finalPosition = blendedPosition.lerp(this.campTargetPosition, this.campBlend);
+    const finalLookAt = blendedLookAt.lerp(this.campTargetLookAt, this.campBlend);
+
     this.updateShake(delta);
 
-    this.camera.position.copy(blendedPosition).add(this.shakeOffset);
-    this.camera.lookAt(blendedLookAt);
+    this.camera.position.copy(finalPosition).add(this.shakeOffset);
+    this.camera.lookAt(finalLookAt);
   }
 
   private updateShake(delta: number): void {

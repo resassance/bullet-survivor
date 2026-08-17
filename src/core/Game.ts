@@ -33,14 +33,17 @@ import { DebugPanel } from '../ui/DebugPanel';
 import { CampScreen } from '../ui/CampScreen';
 import { ArchiveScreen } from '../ui/ArchiveScreen';
 import { PauseButton } from '../ui/PauseButton';
+import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
+import { CampWorld } from '../world/CampWorld';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
+import { type CampStationId, findCampStation } from '../gameplay/campStations';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
   pickVictoryDialogue,
 } from '../gameplay/dialogueLines';
-import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE } from '../utils/constants';
+import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE, CAMP_CAMERA } from '../utils/constants';
 
 export class Game {
   private sceneManager: SceneManager;
@@ -73,11 +76,15 @@ export class Game {
   private dialogueScreen: DialogueScreen;
   private campScreen: CampScreen;
   private archiveScreen: ArchiveScreen;
+  private campWorld: CampWorld;
+  private campHotspotOverlay: CampHotspotOverlay;
   private campReturnConfig: { label: string; onPrimary: () => void } | null = null;
   private pauseButton: PauseButton;
   private clock: THREE.Clock;
+  private container: HTMLElement;
   private isGameOver = false;
   private isPaused = false;
+  private isCampOpen = false;
   private subtitleTimer: number;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -85,6 +92,7 @@ export class Game {
     if (!container) {
       throw new Error('Canvas must be attached to a container element');
     }
+    this.container = container;
 
     this.sceneManager = new SceneManager();
     this.rendererManager = new RendererManager(canvas);
@@ -133,9 +141,16 @@ export class Game {
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
     this.dialogueScreen = new DialogueScreen(container);
+
+    this.campWorld = new CampWorld();
+    this.campHotspotOverlay = new CampHotspotOverlay(container, {
+      onSelect: (stationId) => this.handleStationSelected(stationId),
+    });
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
       onArchiveOpen: () => this.openArchive(),
+      onPanelClosed: () => this.returnToCampOverview(),
     });
     this.archiveScreen = new ArchiveScreen(container, () => this.closeArchive());
     this.pauseButton = new PauseButton(container, () => this.openCampMidStage());
@@ -177,6 +192,7 @@ export class Game {
     this.sceneManager.add(this.gemManager.mesh);
     this.sceneManager.add(this.particleManager.mesh);
     this.sceneManager.add(this.specialWeaponManager.group);
+    this.sceneManager.add(this.campWorld.group);
   }
 
   private bindEvents(): void {
@@ -199,11 +215,14 @@ export class Game {
 
     this.healthManager.update(delta);
     this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
-    this.pauseButton.setVisible(!this.isGameOver && !this.isPaused);
+    this.pauseButton.setVisible(!this.isGameOver && !this.isPaused && !this.isCampOpen);
 
     if (!this.isGameOver && !this.isPaused) {
       this.updateGameplay(delta);
     }
+
+    this.campWorld.update(delta);
+    this.campHotspotOverlay.update(this.cameraManager.camera, this.container);
 
     this.postProcessing.render(delta);
   };
@@ -402,6 +421,7 @@ export class Game {
 
   private launchStageFromCamp(): void {
     this.campScreen.hide();
+    this.exitCampWorld();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -415,12 +435,48 @@ export class Game {
 
   private closeCampMidStage(): void {
     this.campScreen.hide();
+    this.exitCampWorld();
     this.isPaused = false;
   }
 
   private showCamp(primaryLabel: string, onPrimary: () => void): void {
     this.campReturnConfig = { label: primaryLabel, onPrimary };
-    this.campScreen.show(primaryLabel, onPrimary, this.bulletManager.weaponId);
+    this.enterCampWorld();
+    this.campScreen.show(
+      primaryLabel,
+      onPrimary,
+      this.bulletManager.weaponId,
+      this.specialWeaponManager.equippedId
+    );
+  }
+
+  private enterCampWorld(): void {
+    this.isCampOpen = true;
+    this.campWorld.group.visible = true;
+    this.cameraManager.setCampActive(true);
+    this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
+    this.campHotspotOverlay.setVisible(true);
+    this.campHotspotOverlay.setActiveStation(null);
+  }
+
+  private exitCampWorld(): void {
+    this.isCampOpen = false;
+    this.campWorld.group.visible = false;
+    this.cameraManager.setCampActive(false);
+    this.campHotspotOverlay.setVisible(false);
+  }
+
+  private returnToCampOverview(): void {
+    if (!this.isCampOpen) return;
+    this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
+    this.campHotspotOverlay.setActiveStation(null);
+  }
+
+  private handleStationSelected(id: CampStationId): void {
+    const station = findCampStation(id);
+    this.cameraManager.setCampTarget(station.cameraPosition, station.cameraLookAt);
+    this.campHotspotOverlay.setActiveStation(id);
+    this.campScreen.openStation(id);
   }
 
   private openArchive(): void {
@@ -434,7 +490,8 @@ export class Game {
       this.campScreen.show(
         this.campReturnConfig.label,
         this.campReturnConfig.onPrimary,
-        this.bulletManager.weaponId
+        this.bulletManager.weaponId,
+        this.specialWeaponManager.equippedId
       );
     }
   }
