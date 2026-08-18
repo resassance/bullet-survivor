@@ -1,28 +1,121 @@
 import * as THREE from 'three';
-import { CAMP_STATIONS, type CampStationDefinition } from '../gameplay/campStations';
+import { CAMP_STATIONS, type CampStationDefinition, type CampStationId } from '../gameplay/campStations';
 import { createLabelTexture } from '../utils/labelTexture';
+import { createCharacterPoseTexture } from '../utils/characterSprite';
+import { billboardYAxis } from '../utils/billboard';
+import { CAMP_SCENE, PLAYER } from '../utils/constants';
 
-interface PadEntry {
-  material: THREE.MeshBasicMaterial;
+interface StationVisual {
+  definition: CampStationDefinition;
+  stationGroup: THREE.Group;
+  pad: THREE.Mesh;
+  padMaterial: THREE.MeshBasicMaterial;
   baseOpacity: number;
-  ready: boolean;
+  label: THREE.Sprite;
+  locked: boolean;
+  hovered: boolean;
+  active: boolean;
+  scale: number;
   phase: number;
 }
 
 export class CampWorld {
   public readonly group: THREE.Group;
 
-  private pads: PadEntry[] = [];
+  private stations: Map<CampStationId, StationVisual> = new Map();
   private spinning: THREE.Object3D[] = [];
+  private fireLight: THREE.PointLight;
+  private character: THREE.Mesh;
   private elapsed = 0;
 
   constructor() {
     this.group = new THREE.Group();
     this.group.visible = false;
 
+    this.group.add(this.buildFloor());
+    this.group.add(this.buildAmbientLight());
+    this.fireLight = this.buildCampfire();
+
     for (const station of CAMP_STATIONS) {
       this.buildStation(station);
     }
+
+    this.character = this.buildCharacter();
+    this.group.add(this.character);
+  }
+
+  private buildFloor(): THREE.Mesh {
+    const geometry = new THREE.CircleGeometry(11, 48);
+    const material = new THREE.MeshStandardMaterial({
+      color: CAMP_SCENE.FLOOR_COLOR,
+      roughness: 0.95,
+      metalness: 0,
+      emissive: new THREE.Color(CAMP_SCENE.FLOOR_EMISSIVE),
+      emissiveIntensity: 0.12,
+    });
+    const floor = new THREE.Mesh(geometry, material);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -0.02, 4);
+    return floor;
+  }
+
+  private buildAmbientLight(): THREE.AmbientLight {
+    return new THREE.AmbientLight(CAMP_SCENE.AMBIENT_COLOR, CAMP_SCENE.AMBIENT_INTENSITY);
+  }
+
+  private buildCampfire(): THREE.PointLight {
+    const fireGroup = new THREE.Group();
+    fireGroup.position.set(0, 0, 1.2);
+
+    const logMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2b1a10,
+      roughness: 0.9,
+    });
+    for (let i = 0; i < 3; i++) {
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 6), logMaterial);
+      log.rotation.z = Math.PI / 2;
+      log.rotation.y = (i / 3) * Math.PI;
+      log.position.y = 0.08;
+      fireGroup.add(log);
+    }
+
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: CAMP_SCENE.FIRE_LIGHT_COLOR,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const glow = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.4, 8), glowMaterial);
+    glow.position.y = 0.3;
+    fireGroup.add(glow);
+
+    const light = new THREE.PointLight(
+      CAMP_SCENE.FIRE_LIGHT_COLOR,
+      CAMP_SCENE.FIRE_LIGHT_INTENSITY,
+      9
+    );
+    light.position.set(
+      CAMP_SCENE.FIRE_LIGHT_POSITION.x,
+      CAMP_SCENE.FIRE_LIGHT_POSITION.y,
+      CAMP_SCENE.FIRE_LIGHT_POSITION.z
+    );
+    fireGroup.add(light);
+
+    this.group.add(fireGroup);
+    return light;
+  }
+
+  private buildCharacter(): THREE.Mesh {
+    const texture = createCharacterPoseTexture('kneel');
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.1,
+      side: THREE.DoubleSide,
+    });
+    const geometry = new THREE.PlaneGeometry(PLAYER.WIDTH, PLAYER.HEIGHT);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, PLAYER.HEIGHT / 2, 2.6);
+    return mesh;
   }
 
   private buildStation(station: CampStationDefinition): void {
@@ -33,14 +126,34 @@ export class CampWorld {
       station.propPosition.z
     );
 
-    stationGroup.add(this.buildPad(station));
+    const { pad, material: padMaterial, baseOpacity } = this.buildPad(station);
+    stationGroup.add(pad);
     stationGroup.add(this.buildProp(station));
-    stationGroup.add(this.buildLabel(station));
+
+    const label = this.buildLabel(station, !station.ready);
+    label.position.y = station.id === 'story' ? 2.9 : 2.3;
+    stationGroup.add(label);
 
     this.group.add(stationGroup);
+
+    this.stations.set(station.id, {
+      definition: station,
+      stationGroup,
+      pad,
+      padMaterial,
+      baseOpacity,
+      label,
+      locked: !station.ready,
+      hovered: false,
+      active: false,
+      scale: 1,
+      phase: Math.random() * Math.PI * 2,
+    });
   }
 
-  private buildPad(station: CampStationDefinition): THREE.Mesh {
+  private buildPad(
+    station: CampStationDefinition
+  ): { pad: THREE.Mesh; material: THREE.MeshBasicMaterial; baseOpacity: number } {
     const geometry = new THREE.RingGeometry(0.9, 1.15, 32);
     const baseOpacity = station.ready ? 0.5 : 0.18;
     const material = new THREE.MeshBasicMaterial({
@@ -49,17 +162,10 @@ export class CampWorld {
       opacity: baseOpacity,
       side: THREE.DoubleSide,
     });
-    this.pads.push({
-      material,
-      baseOpacity,
-      ready: station.ready,
-      phase: Math.random() * Math.PI * 2,
-    });
-
     const pad = new THREE.Mesh(geometry, material);
     pad.rotation.x = -Math.PI / 2;
     pad.position.y = 0.02;
-    return pad;
+    return { pad, material, baseOpacity };
   }
 
   private buildProp(station: CampStationDefinition): THREE.Group {
@@ -67,16 +173,16 @@ export class CampWorld {
     const dim = station.ready ? 1 : 0.4;
 
     const baseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x151225,
-      roughness: 0.7,
-      metalness: 0.3,
+      color: 0x201509,
+      roughness: 0.75,
+      metalness: 0.15,
       emissive: new THREE.Color(station.accentColorHex),
       emissiveIntensity: 0.18 * dim,
     });
     const accentMaterial = new THREE.MeshStandardMaterial({
       color: station.accentColorHex,
       roughness: 0.35,
-      metalness: 0.4,
+      metalness: 0.3,
       emissive: new THREE.Color(station.accentColorHex),
       emissiveIntensity: 0.6 * dim,
     });
@@ -140,14 +246,48 @@ export class CampWorld {
         this.spinning.push(dial);
         break;
       }
+      case 'story': {
+        const archMaterial = new THREE.MeshStandardMaterial({
+          color: 0x1a1006,
+          roughness: 0.6,
+          metalness: 0.25,
+          emissive: new THREE.Color(station.accentColorHex),
+          emissiveIntensity: 0.25,
+        });
+        const pillarGeometry = new THREE.BoxGeometry(0.35, 2.1, 0.35);
+        const leftPillar = new THREE.Mesh(pillarGeometry, archMaterial);
+        leftPillar.position.set(-1.0, 1.05, 0);
+        propGroup.add(leftPillar);
+        const rightPillar = new THREE.Mesh(pillarGeometry, archMaterial);
+        rightPillar.position.set(1.0, 1.05, 0);
+        propGroup.add(rightPillar);
+
+        const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 0.4), archMaterial);
+        lintel.position.set(0, 2.15, 0);
+        propGroup.add(lintel);
+
+        const glowStrip = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.05), accentMaterial);
+        glowStrip.position.set(0, 1.95, 0.2);
+        propGroup.add(glowStrip);
+
+        const pathMaterial = new THREE.MeshBasicMaterial({
+          color: station.accentColorHex,
+          transparent: true,
+          opacity: 0.16,
+        });
+        const path = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 5.5), pathMaterial);
+        path.rotation.x = -Math.PI / 2;
+        path.position.set(0, 0.01, 3.2);
+        propGroup.add(path);
+        break;
+      }
     }
 
     return propGroup;
   }
 
-  private buildLabel(station: CampStationDefinition): THREE.Sprite {
-    const text = station.ready ? station.label : `${station.label} · СКОРО`;
-    const texture = createLabelTexture(text, station.accentColor);
+  private buildLabel(station: CampStationDefinition, locked: boolean): THREE.Sprite {
+    const texture = createLabelTexture(this.labelText(station, locked), station.accentColor);
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
@@ -160,18 +300,89 @@ export class CampWorld {
     return sprite;
   }
 
-  public update(delta: number): void {
+  private labelText(station: CampStationDefinition, locked: boolean): string {
+    return locked ? `${station.label} · ЗАКРЫТО` : station.label;
+  }
+
+  /** Marks a station unlocked/locked at runtime (e.g. special weapons gated by story stage). */
+  public setStationLocked(id: CampStationId, locked: boolean): void {
+    const visual = this.stations.get(id);
+    if (!visual || visual.locked === locked) return;
+
+    visual.locked = locked;
+    visual.baseOpacity = locked ? 0.18 : 0.5;
+
+    const material = visual.label.material as THREE.SpriteMaterial;
+    const oldTexture = material.map;
+    const texture = createLabelTexture(
+      this.labelText(visual.definition, locked),
+      visual.definition.accentColor
+    );
+    material.map = texture;
+    material.needsUpdate = true;
+    oldTexture?.dispose();
+  }
+
+  /** Updates the story gate's label text (e.g. "ИСТОРИЯ" vs "В БОЙ" when resuming a paused run). */
+  public setStoryLabel(text: string): void {
+    const visual = this.stations.get('story');
+    if (!visual) return;
+
+    const material = visual.label.material as THREE.SpriteMaterial;
+    const oldTexture = material.map;
+    const texture = createLabelTexture(text, visual.definition.accentColor);
+    material.map = texture;
+    material.needsUpdate = true;
+    oldTexture?.dispose();
+  }
+
+  public setHovered(id: CampStationId | null): void {
+    for (const [stationId, visual] of this.stations) {
+      visual.hovered = stationId === id;
+    }
+  }
+
+  public setActiveStation(id: CampStationId | null): void {
+    for (const [stationId, visual] of this.stations) {
+      visual.active = stationId === id;
+    }
+  }
+
+  public isStationLocked(id: CampStationId): boolean {
+    return this.stations.get(id)?.locked ?? true;
+  }
+
+  public update(delta: number, camera: THREE.Camera): void {
     if (!this.group.visible) return;
     this.elapsed += delta;
 
-    for (const pad of this.pads) {
-      if (!pad.ready) continue;
-      const pulse = Math.sin(this.elapsed * 2 + pad.phase) * 0.1;
-      pad.material.opacity = pad.baseOpacity + pulse;
+    const flicker =
+      1 +
+      Math.sin(this.elapsed * CAMP_SCENE.FIRE_FLICKER_SPEED) * CAMP_SCENE.FIRE_FLICKER_AMOUNT * 0.3 +
+      (Math.random() - 0.5) * CAMP_SCENE.FIRE_FLICKER_AMOUNT * 0.4;
+    this.fireLight.intensity = CAMP_SCENE.FIRE_LIGHT_INTENSITY * Math.max(0.4, flicker);
+
+    for (const visual of this.stations.values()) {
+      if (!visual.locked) {
+        const pulse = Math.sin(this.elapsed * 2 + visual.phase) * 0.1;
+        visual.padMaterial.opacity = visual.baseOpacity + pulse;
+      } else {
+        visual.padMaterial.opacity = visual.baseOpacity;
+      }
+
+      if (visual.hovered || visual.active) {
+        visual.padMaterial.opacity = Math.min(1, visual.padMaterial.opacity + 0.25);
+      }
+
+      const targetScale = visual.hovered || visual.active ? 1.08 : 1;
+      visual.scale += (targetScale - visual.scale) * Math.min(1, delta * 8);
+      visual.stationGroup.scale.setScalar(visual.scale);
     }
 
     for (const object of this.spinning) {
       object.rotation.y += delta * 0.6;
     }
+
+    billboardYAxis(this.character, camera);
   }
 }

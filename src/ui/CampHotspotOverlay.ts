@@ -3,6 +3,7 @@ import { CAMP_STATIONS, type CampStationId } from '../gameplay/campStations';
 
 export interface CampHotspotCallbacks {
   onSelect: (id: CampStationId) => void;
+  onHover: (id: CampStationId | null) => void;
 }
 
 export class CampHotspotOverlay {
@@ -20,13 +21,10 @@ export class CampHotspotOverlay {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'camp-hotspot';
-      button.classList.toggle('camp-hotspot--soon', !station.ready);
-      button.style.setProperty('--hotspot-color', station.accentColor);
-      button.innerHTML = `
-        <span class="camp-hotspot-dot"></span>
-        <span class="camp-hotspot-label">${station.label}</span>
-      `;
+      button.setAttribute('aria-label', station.label);
       button.addEventListener('click', () => callbacks.onSelect(station.id));
+      button.addEventListener('pointerenter', () => callbacks.onHover(station.id));
+      button.addEventListener('pointerleave', () => callbacks.onHover(null));
 
       this.element.appendChild(button);
       this.buttons.set(station.id, button);
@@ -34,7 +32,7 @@ export class CampHotspotOverlay {
         station.id,
         new THREE.Vector3(
           station.propPosition.x,
-          station.propPosition.y + 2.3,
+          station.propPosition.y + (station.id === 'story' ? 2.9 : 2.3),
           station.propPosition.z
         )
       );
@@ -46,15 +44,6 @@ export class CampHotspotOverlay {
   public setVisible(visible: boolean): void {
     this.visible = visible;
     this.element.classList.toggle('camp-hotspots--visible', visible);
-    if (!visible) {
-      this.setActiveStation(null);
-    }
-  }
-
-  public setActiveStation(id: CampStationId | null): void {
-    for (const [stationId, button] of this.buttons) {
-      button.classList.toggle('camp-hotspot--active', stationId === id);
-    }
   }
 
   public update(camera: THREE.PerspectiveCamera, container: HTMLElement): void {
@@ -72,8 +61,8 @@ export class CampHotspotOverlay {
       const x = (this.projected.x * 0.5 + 0.5) * width;
       const y = (-this.projected.y * 0.5 + 0.5) * height;
 
-      button.style.display = behindCamera ? 'none' : 'flex';
-      button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      button.style.display = behindCamera ? 'none' : 'block';
+      button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -55%)`;
     }
   }
 }

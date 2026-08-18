@@ -22,6 +22,8 @@ export class CameraManager {
   private campBlend = 0;
   private campTargetPosition: THREE.Vector3;
   private campTargetLookAt: THREE.Vector3;
+  private campCurrentPosition: THREE.Vector3;
+  private campCurrentLookAt: THREE.Vector3;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(
@@ -52,6 +54,8 @@ export class CameraManager {
       CAMP_CAMERA.OVERVIEW_LOOK_AT.y,
       CAMP_CAMERA.OVERVIEW_LOOK_AT.z
     );
+    this.campCurrentPosition = this.campTargetPosition.clone();
+    this.campCurrentLookAt = this.campTargetLookAt.clone();
 
     this.camera.position.copy(this.basePosition);
     this.camera.lookAt(this.baseLookAt);
@@ -98,8 +102,14 @@ export class CameraManager {
     const campSmoothing = 1 - Math.exp(-CAMP_CAMERA.BLEND_SPEED * delta);
     this.campBlend += (campBlendTarget - this.campBlend) * campSmoothing;
 
-    const finalPosition = blendedPosition.lerp(this.campTargetPosition, this.campBlend);
-    const finalLookAt = blendedLookAt.lerp(this.campTargetLookAt, this.campBlend);
+    // Always ease the camp "current" position toward its target, independent of
+    // campBlend activation, so switching stations while already in camp dollies
+    // smoothly instead of snapping (campBlend alone only smooths entering/leaving camp).
+    this.campCurrentPosition.lerp(this.campTargetPosition, campSmoothing);
+    this.campCurrentLookAt.lerp(this.campTargetLookAt, campSmoothing);
+
+    const finalPosition = blendedPosition.lerp(this.campCurrentPosition, this.campBlend);
+    const finalLookAt = blendedLookAt.lerp(this.campCurrentLookAt, this.campBlend);
 
     this.updateShake(delta);
 

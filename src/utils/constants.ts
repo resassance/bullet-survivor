@@ -225,8 +225,23 @@ export const INPUT = {
 
 export const CAMP_CAMERA = {
   BLEND_SPEED: 3.2,
-  OVERVIEW_POSITION: { x: 0, y: 6.5, z: 13 },
-  OVERVIEW_LOOK_AT: { x: 0, y: 1.6, z: 3.2 },
+  OVERVIEW_POSITION: { x: 0, y: 7.6, z: 15.5 },
+  OVERVIEW_LOOK_AT: { x: 0, y: 1.7, z: 1 },
+};
+
+export const CAMP_SCENE = {
+  BACKGROUND_COLOR: 0x120b08,
+  FOG_COLOR: 0x1a100a,
+  FOG_DENSITY: 0.035,
+  FLOOR_COLOR: 0x2a1c12,
+  FLOOR_EMISSIVE: 0x3d2413,
+  AMBIENT_COLOR: 0x4a2f1c,
+  AMBIENT_INTENSITY: 0.55,
+  FIRE_LIGHT_COLOR: 0xff9a4d,
+  FIRE_LIGHT_INTENSITY: 2.2,
+  FIRE_LIGHT_POSITION: { x: 0, y: 1.1, z: 1.2 },
+  FIRE_FLICKER_SPEED: 6,
+  FIRE_FLICKER_AMOUNT: 0.5,
 };
 
 export const RENDERER = {

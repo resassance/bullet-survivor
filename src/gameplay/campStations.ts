@@ -1,4 +1,4 @@
-export type CampStationId = 'weapon' | 'archive' | 'skills' | 'special' | 'settings';
+export type CampStationId = 'weapon' | 'archive' | 'skills' | 'special' | 'settings' | 'story';
 
 export interface Vec3Like {
   x: number;
@@ -51,7 +51,7 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
   {
     id: 'special',
     label: 'СПЕЦОРУЖИЕ',
-    ready: true,
+    ready: false,
     propPosition: { x: 5.4, y: 0, z: 5.8 },
     cameraPosition: { x: 3.5, y: 2.4, z: 9.2 },
     cameraLookAt: { x: 5.4, y: 1.6, z: 5.8 },
@@ -67,6 +67,16 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     cameraLookAt: { x: 0, y: 1.5, z: 7.4 },
     accentColor: '#9b7fff',
     accentColorHex: 0x9b7fff,
+  },
+  {
+    id: 'story',
+    label: 'ИСТОРИЯ',
+    ready: true,
+    propPosition: { x: 0, y: 0, z: -5.5 },
+    cameraPosition: { x: 0, y: 1.9, z: -0.8 },
+    cameraLookAt: { x: 0, y: 1.5, z: -5.5 },
+    accentColor: '#ffb347',
+    accentColorHex: 0xffb347,
   },
 ];
 

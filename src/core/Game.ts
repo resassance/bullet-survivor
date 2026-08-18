@@ -38,12 +38,22 @@ import { CampWorld } from '../world/CampWorld';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
+import { isSpecialStationUnlocked } from '../gameplay/progression';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
   pickVictoryDialogue,
 } from '../gameplay/dialogueLines';
-import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE, CAMP_CAMERA } from '../utils/constants';
+import {
+  ARENA,
+  PLAYER,
+  CAMERA_SHAKE,
+  SUBTITLE,
+  CAMP_CAMERA,
+  CAMP_SCENE,
+  BACKGROUND_COLOR,
+  FOG,
+} from '../utils/constants';
 
 export class Game {
   private sceneManager: SceneManager;
@@ -77,6 +87,7 @@ export class Game {
   private campScreen: CampScreen;
   private archiveScreen: ArchiveScreen;
   private campWorld: CampWorld;
+  private battleWorld!: THREE.Group;
   private campHotspotOverlay: CampHotspotOverlay;
   private campReturnConfig: { label: string; onPrimary: () => void } | null = null;
   private pauseButton: PauseButton;
@@ -145,6 +156,7 @@ export class Game {
     this.campWorld = new CampWorld();
     this.campHotspotOverlay = new CampHotspotOverlay(container, {
       onSelect: (stationId) => this.handleStationSelected(stationId),
+      onHover: (stationId) => this.campWorld.setHovered(stationId),
     });
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
@@ -178,20 +190,24 @@ export class Game {
   }
 
   private setupWorld(): void {
+    this.battleWorld = new THREE.Group();
+
     const grid = new GridFloor();
-    this.sceneManager.add(grid.group);
+    this.battleWorld.add(grid.group);
 
     const lighting = new Lighting();
-    this.sceneManager.add(lighting.group);
+    this.battleWorld.add(lighting.group);
 
-    this.sceneManager.add(this.player.mesh);
-    this.sceneManager.add(this.coverProp.group);
-    this.sceneManager.add(this.bulletManager.mesh);
-    this.sceneManager.add(this.enemyManager.mesh);
-    this.sceneManager.add(this.crateManager.group);
-    this.sceneManager.add(this.gemManager.mesh);
-    this.sceneManager.add(this.particleManager.mesh);
-    this.sceneManager.add(this.specialWeaponManager.group);
+    this.battleWorld.add(this.player.mesh);
+    this.battleWorld.add(this.coverProp.group);
+    this.battleWorld.add(this.bulletManager.mesh);
+    this.battleWorld.add(this.enemyManager.mesh);
+    this.battleWorld.add(this.crateManager.group);
+    this.battleWorld.add(this.gemManager.mesh);
+    this.battleWorld.add(this.particleManager.mesh);
+    this.battleWorld.add(this.specialWeaponManager.group);
+
+    this.sceneManager.add(this.battleWorld);
     this.sceneManager.add(this.campWorld.group);
   }
 
@@ -221,7 +237,7 @@ export class Game {
       this.updateGameplay(delta);
     }
 
-    this.campWorld.update(delta);
+    this.campWorld.update(delta, this.cameraManager.camera);
     this.campHotspotOverlay.update(this.cameraManager.camera, this.container);
 
     this.postProcessing.render(delta);
@@ -439,43 +455,66 @@ export class Game {
     this.isPaused = false;
   }
 
-  private showCamp(primaryLabel: string, onPrimary: () => void): void {
-    this.campReturnConfig = { label: primaryLabel, onPrimary };
+  private showCamp(gateLabel: string, onPrimary: () => void): void {
+    this.campReturnConfig = { label: gateLabel, onPrimary };
     this.enterCampWorld();
+    this.campWorld.setStoryLabel(gateLabel.toUpperCase());
     this.campScreen.show(
-      primaryLabel,
-      onPrimary,
       this.bulletManager.weaponId,
-      this.specialWeaponManager.equippedId
+      this.specialWeaponManager.equippedId,
+      this.stageManager.currentStage
     );
   }
 
   private enterCampWorld(): void {
     this.isCampOpen = true;
+    this.battleWorld.visible = false;
     this.campWorld.group.visible = true;
+    this.campWorld.setStationLocked(
+      'special',
+      !isSpecialStationUnlocked(this.stageManager.currentStage)
+    );
     this.cameraManager.setCampActive(true);
     this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
     this.campHotspotOverlay.setVisible(true);
-    this.campHotspotOverlay.setActiveStation(null);
+    this.campWorld.setActiveStation(null);
+    this.sceneManager.scene.background = new THREE.Color(CAMP_SCENE.BACKGROUND_COLOR);
+    this.sceneManager.scene.fog = new THREE.FogExp2(CAMP_SCENE.FOG_COLOR, CAMP_SCENE.FOG_DENSITY);
   }
 
   private exitCampWorld(): void {
     this.isCampOpen = false;
+    this.battleWorld.visible = true;
     this.campWorld.group.visible = false;
     this.cameraManager.setCampActive(false);
     this.campHotspotOverlay.setVisible(false);
+    this.campWorld.setActiveStation(null);
+    this.campWorld.setHovered(null);
+    this.sceneManager.scene.background = new THREE.Color(BACKGROUND_COLOR);
+    this.sceneManager.scene.fog = new THREE.FogExp2(FOG.COLOR, FOG.DENSITY);
   }
 
   private returnToCampOverview(): void {
     if (!this.isCampOpen) return;
     this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
-    this.campHotspotOverlay.setActiveStation(null);
+    this.campWorld.setActiveStation(null);
   }
 
   private handleStationSelected(id: CampStationId): void {
     const station = findCampStation(id);
     this.cameraManager.setCampTarget(station.cameraPosition, station.cameraLookAt);
-    this.campHotspotOverlay.setActiveStation(id);
+    this.campWorld.setActiveStation(id);
+
+    if (id === 'story') {
+      // Let the camera dolly toward the gate before actually advancing —
+      // a beat of "walking through" rather than an instant cut.
+      const onPrimary = this.campReturnConfig?.onPrimary;
+      window.setTimeout(() => {
+        onPrimary?.();
+      }, 500);
+      return;
+    }
+
     this.campScreen.openStation(id);
   }
 
@@ -486,12 +525,12 @@ export class Game {
 
   private closeArchive(): void {
     this.archiveScreen.hide();
+    this.returnToCampOverview();
     if (this.campReturnConfig) {
       this.campScreen.show(
-        this.campReturnConfig.label,
-        this.campReturnConfig.onPrimary,
         this.bulletManager.weaponId,
-        this.specialWeaponManager.equippedId
+        this.specialWeaponManager.equippedId,
+        this.stageManager.currentStage
       );
     }
   }
