@@ -35,10 +35,12 @@ import { ArchiveScreen } from '../ui/ArchiveScreen';
 import { PauseButton } from '../ui/PauseButton';
 import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
+import { AudioManager } from '../managers/AudioManager';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
+import { WEAPONS } from '../gameplay/weapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
-import { isSpecialStationUnlocked } from '../gameplay/progression';
+import { isSpecialStationUnlocked, isWeaponUnlocked } from '../gameplay/progression';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
@@ -89,6 +91,7 @@ export class Game {
   private campWorld: CampWorld;
   private battleWorld!: THREE.Group;
   private campHotspotOverlay: CampHotspotOverlay;
+  private audioManager: AudioManager;
   private campReturnConfig: { label: string; onPrimary: () => void } | null = null;
   private pauseButton: PauseButton;
   private clock: THREE.Clock;
@@ -153,16 +156,33 @@ export class Game {
     this.subtitleBar = new SubtitleBar(container);
     this.dialogueScreen = new DialogueScreen(container);
 
+    this.audioManager = new AudioManager();
+    const unlockAudioOnce = () => {
+      this.audioManager.unlock();
+      container.removeEventListener('pointerdown', unlockAudioOnce);
+    };
+    container.addEventListener('pointerdown', unlockAudioOnce);
+
     this.campWorld = new CampWorld();
     this.campHotspotOverlay = new CampHotspotOverlay(container, {
       onSelect: (stationId) => this.handleStationSelected(stationId),
-      onHover: (stationId) => this.campWorld.setHovered(stationId),
+      onHover: (stationId) => {
+        this.campWorld.setHovered(stationId);
+        if (stationId) {
+          this.audioManager.playHover();
+        }
+      },
     });
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
       onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
       onArchiveOpen: () => this.openArchive(),
       onPanelClosed: () => this.returnToCampOverview(),
+      isAudioMuted: () => this.audioManager.isMuted(),
+      onToggleAudioMuted: () => {
+        this.audioManager.setMuted(!this.audioManager.isMuted());
+        return this.audioManager.isMuted();
+      },
     });
     this.archiveScreen = new ArchiveScreen(container, () => this.closeArchive());
     this.pauseButton = new PauseButton(container, () => this.openCampMidStage());
@@ -470,16 +490,17 @@ export class Game {
     this.isCampOpen = true;
     this.battleWorld.visible = false;
     this.campWorld.group.visible = true;
-    this.campWorld.setStationLocked(
-      'special',
-      !isSpecialStationUnlocked(this.stageManager.currentStage)
-    );
+    const stage = this.stageManager.currentStage;
+    this.campWorld.setStationLocked('special', !isSpecialStationUnlocked(stage));
+    this.campWorld.setWeaponUnlocks(WEAPONS.map((weapon) => isWeaponUnlocked(weapon.id, stage)));
+    this.campWorld.setStoryProgress(stage);
     this.cameraManager.setCampActive(true);
     this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
     this.campHotspotOverlay.setVisible(true);
     this.campWorld.setActiveStation(null);
     this.sceneManager.scene.background = new THREE.Color(CAMP_SCENE.BACKGROUND_COLOR);
     this.sceneManager.scene.fog = new THREE.FogExp2(CAMP_SCENE.FOG_COLOR, CAMP_SCENE.FOG_DENSITY);
+    this.audioManager.startCampAmbience();
   }
 
   private exitCampWorld(): void {
@@ -492,6 +513,7 @@ export class Game {
     this.campWorld.setHovered(null);
     this.sceneManager.scene.background = new THREE.Color(BACKGROUND_COLOR);
     this.sceneManager.scene.fog = new THREE.FogExp2(FOG.COLOR, FOG.DENSITY);
+    this.audioManager.stopCampAmbience();
   }
 
   private returnToCampOverview(): void {
@@ -506,6 +528,7 @@ export class Game {
     this.campWorld.setActiveStation(id);
 
     if (id === 'story') {
+      this.audioManager.playWhoosh();
       // Let the camera dolly toward the gate before actually advancing —
       // a beat of "walking through" rather than an instant cut.
       const onPrimary = this.campReturnConfig?.onPrimary;
@@ -515,6 +538,7 @@ export class Game {
       return;
     }
 
+    this.audioManager.playSelect();
     this.campScreen.openStation(id);
   }
 

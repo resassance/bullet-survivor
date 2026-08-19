@@ -24,6 +24,7 @@ export class CameraManager {
   private campTargetLookAt: THREE.Vector3;
   private campCurrentPosition: THREE.Vector3;
   private campCurrentLookAt: THREE.Vector3;
+  private campElapsed = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(
@@ -110,6 +111,14 @@ export class CameraManager {
 
     const finalPosition = blendedPosition.lerp(this.campCurrentPosition, this.campBlend);
     const finalLookAt = blendedLookAt.lerp(this.campCurrentLookAt, this.campBlend);
+
+    if (this.campBlend > 0.01) {
+      this.campElapsed += delta;
+      const amplitude = CAMP_CAMERA.CAMERA_DRIFT_AMPLITUDE * this.campBlend;
+      const speed = CAMP_CAMERA.CAMERA_DRIFT_SPEED;
+      finalPosition.x += Math.sin(this.campElapsed * speed) * amplitude;
+      finalPosition.y += Math.sin(this.campElapsed * speed * 0.6 + 1.3) * amplitude * 0.6;
+    }
 
     this.updateShake(delta);
 

@@ -16,6 +16,8 @@ export interface CampScreenCallbacks {
   onSpecialSelected: (specialId: SpecialWeaponId | null) => void;
   onArchiveOpen: () => void;
   onPanelClosed: () => void;
+  isAudioMuted: () => boolean;
+  onToggleAudioMuted: () => boolean;
 }
 
 export class CampScreen {
@@ -23,6 +25,8 @@ export class CampScreen {
   private panel: HTMLDivElement;
   private panelTitle: HTMLDivElement;
   private panelBody: HTMLDivElement;
+  private infoStage: HTMLDivElement;
+  private infoLoadout: HTMLDivElement;
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
   private specialButtons: Map<string, HTMLButtonElement> = new Map();
   private selectedWeaponId = 'standard';
@@ -37,7 +41,13 @@ export class CampScreen {
     this.element.innerHTML = `
       <div class="camp-topbar">
         <div class="camp-portrait"></div>
-        <h1 class="camp-title">лагерь</h1>
+        <div class="camp-topbar-text">
+          <h1 class="camp-title">лагерь</h1>
+          <div class="camp-info-row">
+            <span class="camp-info-stage"></span>
+            <span class="camp-info-loadout"></span>
+          </div>
+        </div>
       </div>
       <div class="camp-panel">
         <div class="camp-panel-header">
@@ -55,6 +65,8 @@ export class CampScreen {
     this.panel = this.element.querySelector('.camp-panel') as HTMLDivElement;
     this.panelTitle = this.element.querySelector('.camp-panel-title') as HTMLDivElement;
     this.panelBody = this.element.querySelector('.camp-panel-body') as HTMLDivElement;
+    this.infoStage = this.element.querySelector('.camp-info-stage') as HTMLDivElement;
+    this.infoLoadout = this.element.querySelector('.camp-info-loadout') as HTMLDivElement;
 
     const closeButton = this.element.querySelector('.camp-panel-close') as HTMLButtonElement;
     closeButton.addEventListener('click', () => this.closePanel());
@@ -85,6 +97,8 @@ export class CampScreen {
       } else {
         this.renderSoonPanel(`Первое спецоружие станет доступно на ${specialStationUnlockStage()} уровне.`);
       }
+    } else if (id === 'settings') {
+      this.renderSettingsPanel();
     } else {
       this.renderSoonPanel();
     }
@@ -174,6 +188,32 @@ export class CampScreen {
     this.panelBody.appendChild(row);
   }
 
+  private renderSettingsPanel(): void {
+    const row = document.createElement('div');
+    row.className = 'camp-settings-row';
+
+    const label = document.createElement('span');
+    label.className = 'camp-settings-label';
+    label.textContent = 'Звук';
+    row.appendChild(label);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'camp-settings-toggle';
+    const applyToggleState = (muted: boolean) => {
+      toggle.textContent = muted ? 'выкл' : 'вкл';
+      toggle.classList.toggle('camp-settings-toggle--off', muted);
+    };
+    applyToggleState(this.callbacks.isAudioMuted());
+    toggle.addEventListener('click', () => {
+      const muted = this.callbacks.onToggleAudioMuted();
+      applyToggleState(muted);
+    });
+    row.appendChild(toggle);
+
+    this.panelBody.appendChild(row);
+  }
+
   private renderSoonPanel(message?: string): void {
     const notice = document.createElement('div');
     notice.className = 'camp-soon-notice';
@@ -181,16 +221,27 @@ export class CampScreen {
     this.panelBody.appendChild(notice);
   }
 
+  private updateInfoRow(): void {
+    this.infoStage.textContent = `УРОВЕНЬ ${this.currentStage}`;
+    const weaponName = WEAPONS.find((weapon) => weapon.id === this.selectedWeaponId)?.name ?? '';
+    const specialName = this.selectedSpecialId
+      ? SPECIAL_WEAPONS.find((special) => special.id === this.selectedSpecialId)?.name
+      : null;
+    this.infoLoadout.textContent = specialName ? `${weaponName} · ${specialName}` : weaponName;
+  }
+
   private highlightWeapon(weaponId: string): void {
     for (const [id, button] of this.weaponButtons) {
       button.classList.toggle('camp-weapon-button--active', id === weaponId);
     }
+    this.updateInfoRow();
   }
 
   private highlightSpecial(specialId: SpecialWeaponId | null): void {
     for (const [id, button] of this.specialButtons) {
       button.classList.toggle('camp-weapon-button--active', id === (specialId ?? 'none'));
     }
+    this.updateInfoRow();
   }
 
   public closePanel(): void {
@@ -206,6 +257,7 @@ export class CampScreen {
     this.selectedWeaponId = selectedWeaponId;
     this.selectedSpecialId = selectedSpecialId;
     this.currentStage = currentStage;
+    this.updateInfoRow();
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');
   }

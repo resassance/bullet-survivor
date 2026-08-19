@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CAMP_STATIONS, type CampStationDefinition, type CampStationId } from '../gameplay/campStations';
+import { WEAPONS } from '../gameplay/weapons';
 import { createLabelTexture } from '../utils/labelTexture';
 import { createCharacterPoseTexture } from '../utils/characterSprite';
 import { billboardYAxis } from '../utils/billboard';
@@ -12,11 +13,24 @@ interface StationVisual {
   padMaterial: THREE.MeshBasicMaterial;
   baseOpacity: number;
   label: THREE.Sprite;
+  accentMaterial: THREE.MeshStandardMaterial;
+  baseMaterial: THREE.MeshStandardMaterial;
   locked: boolean;
   hovered: boolean;
   active: boolean;
   scale: number;
   phase: number;
+}
+
+interface EmberSlot {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
+  alive: boolean;
 }
 
 export class CampWorld {
@@ -26,6 +40,13 @@ export class CampWorld {
   private spinning: THREE.Object3D[] = [];
   private fireLight: THREE.PointLight;
   private character: THREE.Mesh;
+  private characterBaseY: number;
+  private weaponBarrelMaterials: THREE.MeshStandardMaterial[] = [];
+  private embers: THREE.InstancedMesh;
+  private emberSlots: EmberSlot[] = [];
+  private emberSpawnTimer = 0;
+  private emberDummy = new THREE.Object3D();
+  private progressDecor: { stage: number; object: THREE.Object3D }[] = [];
   private elapsed = 0;
 
   constructor() {
@@ -35,12 +56,17 @@ export class CampWorld {
     this.group.add(this.buildFloor());
     this.group.add(this.buildAmbientLight());
     this.fireLight = this.buildCampfire();
+    this.embers = this.buildEmbers();
+    this.group.add(this.embers);
 
     for (const station of CAMP_STATIONS) {
       this.buildStation(station);
     }
 
+    this.buildProgressDecor();
+
     this.character = this.buildCharacter();
+    this.characterBaseY = this.character.position.y;
     this.group.add(this.character);
   }
 
@@ -104,6 +130,72 @@ export class CampWorld {
     return light;
   }
 
+  private buildEmbers(): THREE.InstancedMesh {
+    const geometry = new THREE.SphereGeometry(0.025, 5, 5);
+    const material = new THREE.MeshBasicMaterial({
+      color: CAMP_SCENE.EMBER_COLOR,
+      transparent: true,
+      toneMapped: false,
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, CAMP_SCENE.EMBER_POOL_SIZE);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+
+    for (let i = 0; i < CAMP_SCENE.EMBER_POOL_SIZE; i++) {
+      this.emberSlots.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, alive: false });
+    }
+
+    return mesh;
+  }
+
+  private spawnEmber(): void {
+    const slot = this.emberSlots.find((s) => !s.alive);
+    if (!slot) return;
+
+    slot.alive = true;
+    slot.x = CAMP_SCENE.FIRE_LIGHT_POSITION.x + (Math.random() - 0.5) * 0.3;
+    slot.y = 0.3;
+    slot.z = 1.2 + (Math.random() - 0.5) * 0.3;
+    slot.vx = (Math.random() - 0.5) * 0.15;
+    slot.vy = THREE.MathUtils.randFloat(0.5, 0.9);
+    slot.vz = (Math.random() - 0.5) * 0.15;
+    slot.life = CAMP_SCENE.EMBER_LIFETIME;
+  }
+
+  private updateEmbers(delta: number): void {
+    this.emberSpawnTimer -= delta;
+    if (this.emberSpawnTimer <= 0) {
+      this.spawnEmber();
+      this.emberSpawnTimer = CAMP_SCENE.EMBER_SPAWN_INTERVAL;
+    }
+
+    let renderIndex = 0;
+    for (const slot of this.emberSlots) {
+      if (!slot.alive) continue;
+
+      slot.life -= delta;
+      if (slot.life <= 0) {
+        slot.alive = false;
+        continue;
+      }
+
+      slot.vx += (Math.random() - 0.5) * 0.4 * delta;
+      slot.x += slot.vx * delta;
+      slot.y += slot.vy * delta;
+      slot.z += slot.vz * delta;
+
+      const lifeRatio = Math.max(0, slot.life / CAMP_SCENE.EMBER_LIFETIME);
+      this.emberDummy.position.set(slot.x, slot.y, slot.z);
+      this.emberDummy.scale.setScalar(lifeRatio);
+      this.emberDummy.updateMatrix();
+      this.embers.setMatrixAt(renderIndex, this.emberDummy.matrix);
+      renderIndex++;
+    }
+    this.embers.count = renderIndex;
+    this.embers.instanceMatrix.needsUpdate = true;
+  }
+
   private buildCharacter(): THREE.Mesh {
     const texture = createCharacterPoseTexture('kneel');
     const material = new THREE.MeshBasicMaterial({
@@ -118,6 +210,51 @@ export class CampWorld {
     return mesh;
   }
 
+  /** Small background flourishes that fade in as the story progresses — camp "fills in" over time. */
+  private buildProgressDecor(): void {
+    const bannerMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3a2416,
+      roughness: 0.8,
+      emissive: new THREE.Color(0xff9a4d),
+      emissiveIntensity: 0.15,
+    });
+    const banner = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.4, 6), bannerMaterial);
+    pole.position.y = 1.2;
+    banner.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), bannerMaterial);
+    flag.position.set(0.32, 2.05, 0);
+    banner.add(flag);
+    banner.position.set(-4.6, 0, 0.4);
+    banner.visible = false;
+    this.group.add(banner);
+    this.progressDecor.push({ stage: 5, object: banner });
+
+    const crateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2c1f12,
+      roughness: 0.85,
+      emissive: new THREE.Color(0xff9a4d),
+      emissiveIntensity: 0.1,
+    });
+    const crates = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), crateMaterial);
+      crate.position.set((i % 2) * 0.55, 0.25 + Math.floor(i / 2) * 0.55, 0);
+      crates.add(crate);
+    }
+    crates.position.set(4.6, 0, 0.6);
+    crates.visible = false;
+    this.group.add(crates);
+    this.progressDecor.push({ stage: 12, object: crates });
+  }
+
+  /** Reveals background decor once the story has advanced far enough — camp visibly "fills in". */
+  public setStoryProgress(stage: number): void {
+    for (const decor of this.progressDecor) {
+      decor.object.visible = stage >= decor.stage;
+    }
+  }
+
   private buildStation(station: CampStationDefinition): void {
     const stationGroup = new THREE.Group();
     stationGroup.position.set(
@@ -128,7 +265,9 @@ export class CampWorld {
 
     const { pad, material: padMaterial, baseOpacity } = this.buildPad(station);
     stationGroup.add(pad);
-    stationGroup.add(this.buildProp(station));
+
+    const { group: propGroup, accentMaterial, baseMaterial } = this.buildProp(station);
+    stationGroup.add(propGroup);
 
     const label = this.buildLabel(station, !station.ready);
     label.position.y = station.id === 'story' ? 2.9 : 2.3;
@@ -143,6 +282,8 @@ export class CampWorld {
       padMaterial,
       baseOpacity,
       label,
+      accentMaterial,
+      baseMaterial,
       locked: !station.ready,
       hovered: false,
       active: false,
@@ -168,7 +309,13 @@ export class CampWorld {
     return { pad, material, baseOpacity };
   }
 
-  private buildProp(station: CampStationDefinition): THREE.Group {
+  private buildProp(
+    station: CampStationDefinition
+  ): {
+    group: THREE.Group;
+    accentMaterial: THREE.MeshStandardMaterial;
+    baseMaterial: THREE.MeshStandardMaterial;
+  } {
     const propGroup = new THREE.Group();
     const dim = station.ready ? 1 : 0.4;
 
@@ -192,14 +339,22 @@ export class CampWorld {
         const rack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.7, 0.4), baseMaterial);
         rack.position.y = 0.85;
         propGroup.add(rack);
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < WEAPONS.length; i++) {
+          const barrelMaterial = new THREE.MeshStandardMaterial({
+            color: station.accentColorHex,
+            roughness: 0.35,
+            metalness: 0.3,
+            emissive: new THREE.Color(station.accentColorHex),
+            emissiveIntensity: 0.6,
+          });
           const barrel = new THREE.Mesh(
             new THREE.CylinderGeometry(0.05, 0.05, 1.3, 8),
-            accentMaterial
+            barrelMaterial
           );
           barrel.rotation.z = Math.PI / 2;
           barrel.position.set(-0.5 + i * 0.5, 1.3, 0.25);
           propGroup.add(barrel);
+          this.weaponBarrelMaterials.push(barrelMaterial);
         }
         break;
       }
@@ -283,7 +438,7 @@ export class CampWorld {
       }
     }
 
-    return propGroup;
+    return { group: propGroup, accentMaterial, baseMaterial };
   }
 
   private buildLabel(station: CampStationDefinition, locked: boolean): THREE.Sprite {
@@ -312,6 +467,10 @@ export class CampWorld {
     visual.locked = locked;
     visual.baseOpacity = locked ? 0.18 : 0.5;
 
+    const dim = locked ? 0.4 : 1;
+    visual.baseMaterial.emissiveIntensity = 0.18 * dim;
+    visual.accentMaterial.emissiveIntensity = 0.6 * dim;
+
     const material = visual.label.material as THREE.SpriteMaterial;
     const oldTexture = material.map;
     const texture = createLabelTexture(
@@ -321,6 +480,14 @@ export class CampWorld {
     material.map = texture;
     material.needsUpdate = true;
     oldTexture?.dispose();
+  }
+
+  /** Lights up each weapon rack barrel individually as that weapon is unlocked by story stage. */
+  public setWeaponUnlocks(unlockedFlags: boolean[]): void {
+    for (let i = 0; i < this.weaponBarrelMaterials.length; i++) {
+      const unlocked = unlockedFlags[i] ?? false;
+      this.weaponBarrelMaterials[i].emissiveIntensity = unlocked ? 0.6 : 0.15;
+    }
   }
 
   /** Updates the story gate's label text (e.g. "ИСТОРИЯ" vs "В БОЙ" when resuming a paused run). */
@@ -362,6 +529,8 @@ export class CampWorld {
       (Math.random() - 0.5) * CAMP_SCENE.FIRE_FLICKER_AMOUNT * 0.4;
     this.fireLight.intensity = CAMP_SCENE.FIRE_LIGHT_INTENSITY * Math.max(0.4, flicker);
 
+    this.updateEmbers(delta);
+
     for (const visual of this.stations.values()) {
       if (!visual.locked) {
         const pulse = Math.sin(this.elapsed * 2 + visual.phase) * 0.1;
@@ -382,6 +551,11 @@ export class CampWorld {
     for (const object of this.spinning) {
       object.rotation.y += delta * 0.6;
     }
+
+    // Subtle idle breathing so the character doesn't look frozen.
+    this.character.position.y = this.characterBaseY + Math.sin(this.elapsed * 1.4) * 0.03;
+    const breathScale = 1 + Math.sin(this.elapsed * 1.4) * 0.015;
+    this.character.scale.set(breathScale, 1, 1);
 
     billboardYAxis(this.character, camera);
   }

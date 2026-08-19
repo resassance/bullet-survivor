@@ -61,7 +61,7 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
   {
     id: 'settings',
     label: 'НАСТРОЙКИ',
-    ready: false,
+    ready: true,
     propPosition: { x: 0, y: 0, z: 7.4 },
     cameraPosition: { x: 0, y: 2.5, z: 10.8 },
     cameraLookAt: { x: 0, y: 1.5, z: 7.4 },

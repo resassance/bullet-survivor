@@ -588,11 +588,11 @@ html, body {
   align-items: center;
   gap: 10px;
   margin-top: env(safe-area-inset-top, 16px);
-  padding: 6px 18px 6px 6px;
+  padding: 6px 20px 6px 6px;
   background: rgba(8, 6, 16, 0.55);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(155, 127, 255, 0.25);
-  border-radius: 999px;
+  border-radius: 16px;
 }
 
 .camp-portrait canvas {
@@ -600,6 +600,12 @@ html, body {
   height: 66px;
   display: block;
   filter: drop-shadow(0 0 14px rgba(155, 127, 255, 0.35));
+}
+
+.camp-topbar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .camp-title {
@@ -611,6 +617,51 @@ html, body {
   color: #f5f0ff;
   text-shadow: 0 0 16px rgba(155, 127, 255, 0.5);
   margin: 0;
+}
+
+.camp-info-row {
+  display: flex;
+  gap: 8px;
+  font-family: sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: #a89bcf;
+}
+
+.camp-info-stage {
+  color: #ffb066;
+}
+
+.camp-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px;
+}
+
+.camp-settings-label {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  color: #d6c9ff;
+}
+
+.camp-settings-toggle {
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(59, 255, 176, 0.16);
+  border: 1px solid rgba(59, 255, 176, 0.55);
+  color: #c9ffe8;
+  text-transform: uppercase;
+}
+
+.camp-settings-toggle--off {
+  background: rgba(255, 59, 110, 0.12);
+  border-color: rgba(255, 59, 110, 0.45);
+  color: #ffc2d2;
 }
 
 .camp-panel {

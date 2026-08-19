@@ -227,6 +227,8 @@ export const CAMP_CAMERA = {
   BLEND_SPEED: 3.2,
   OVERVIEW_POSITION: { x: 0, y: 7.6, z: 15.5 },
   OVERVIEW_LOOK_AT: { x: 0, y: 1.7, z: 1 },
+  CAMERA_DRIFT_AMPLITUDE: 0.06,
+  CAMERA_DRIFT_SPEED: 0.35,
 };
 
 export const CAMP_SCENE = {
@@ -242,6 +244,10 @@ export const CAMP_SCENE = {
   FIRE_LIGHT_POSITION: { x: 0, y: 1.1, z: 1.2 },
   FIRE_FLICKER_SPEED: 6,
   FIRE_FLICKER_AMOUNT: 0.5,
+  EMBER_POOL_SIZE: 18,
+  EMBER_SPAWN_INTERVAL: 0.35,
+  EMBER_COLOR: 0xffb066,
+  EMBER_LIFETIME: 2.2,
 };
 
 export const RENDERER = {
