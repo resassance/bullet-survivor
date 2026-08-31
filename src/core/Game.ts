@@ -25,10 +25,11 @@ import { StageIndicator } from '../ui/StageIndicator';
 import { WeaponIndicator } from '../ui/WeaponIndicator';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { LevelUpOverlay } from '../ui/LevelUpOverlay';
-import { StageCompleteScreen } from '../ui/StageCompleteScreen';
 import { HitFlash } from '../ui/HitFlash';
 import { SubtitleBar } from '../ui/SubtitleBar';
 import { DialogueScreen } from '../ui/DialogueScreen';
+import { VisualNovelScene } from '../ui/VisualNovelScene';
+import { FadeOverlay } from '../ui/FadeOverlay';
 import { DebugPanel } from '../ui/DebugPanel';
 import { CampScreen } from '../ui/CampScreen';
 import { ArchiveScreen } from '../ui/ArchiveScreen';
@@ -46,6 +47,7 @@ import {
   pickIntroDialogue,
   pickVictoryDialogue,
 } from '../gameplay/dialogueLines';
+import { pickNovelScene } from '../gameplay/novelScenes';
 import {
   ARENA,
   PLAYER,
@@ -82,10 +84,11 @@ export class Game {
   private weaponIndicator: WeaponIndicator;
   private gameOverScreen: GameOverScreen;
   private levelUpOverlay: LevelUpOverlay;
-  private stageCompleteScreen: StageCompleteScreen;
   private hitFlash: HitFlash;
   private subtitleBar: SubtitleBar;
   private dialogueScreen: DialogueScreen;
+  private novelScene: VisualNovelScene;
+  private fadeOverlay: FadeOverlay;
   private campScreen: CampScreen;
   private archiveScreen: ArchiveScreen;
   private campWorld: CampWorld;
@@ -149,12 +152,11 @@ export class Game {
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
     );
-    this.stageCompleteScreen = new StageCompleteScreen(container, () =>
-      this.handleStageContinue()
-    );
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
     this.dialogueScreen = new DialogueScreen(container);
+    this.novelScene = new VisualNovelScene(container);
+    this.fadeOverlay = new FadeOverlay(container);
 
     this.audioManager = new AudioManager();
     const unlockAudioOnce = () => {
@@ -439,18 +441,28 @@ export class Game {
 
   private handleStageCleared(): void {
     this.isPaused = true;
-    this.stageCompleteScreen.show(this.stageManager.currentStage);
-  }
-
-  private handleStageContinue(): void {
-    this.stageCompleteScreen.hide();
-    const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
-    this.dialogueScreen.play(dialogue, () => {
-      this.stageManager.advanceStage();
-      this.showCampForNextStage();
+    // Никакого экрана "уровень X пройден" — короткий фейд прямо в мини-диалог,
+    // чтобы не сбивать поток игрока.
+    this.fadeOverlay.transition(() => {
+      const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
+      this.dialogueScreen.play(dialogue, () => this.playPostStageNovelScene());
     });
   }
 
+  private playPostStageNovelScene(): void {
+    const scene = pickNovelScene(this.stageManager.currentStage);
+    this.novelScene.play(scene, () => {
+      this.stageManager.advanceStage();
+      this.fadeOverlay.transition(() => {
+        const dialogue = pickIntroDialogue(this.stageManager.currentStage);
+        this.dialogueScreen.play(dialogue, () => {
+          this.isPaused = false;
+        });
+      });
+    });
+  }
+
+  /** Используется только на самом старте новой игры/рестарта. */
   private showCampForNextStage(): void {
     this.showCamp('сюжетка', () => this.launchStageFromCamp());
   }
@@ -590,7 +602,6 @@ export class Game {
 
     this.levelUpOverlay.hide();
     this.gameOverScreen.hide();
-    this.stageCompleteScreen.hide();
     this.isGameOver = false;
 
     this.isPaused = true;
