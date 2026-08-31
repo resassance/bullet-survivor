@@ -25,22 +25,39 @@ import { StageIndicator } from '../ui/StageIndicator';
 import { WeaponIndicator } from '../ui/WeaponIndicator';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { LevelUpOverlay } from '../ui/LevelUpOverlay';
-import { StageCompleteScreen } from '../ui/StageCompleteScreen';
 import { HitFlash } from '../ui/HitFlash';
 import { SubtitleBar } from '../ui/SubtitleBar';
 import { DialogueScreen } from '../ui/DialogueScreen';
+import { VisualNovelScene } from '../ui/VisualNovelScene';
+import { FadeOverlay } from '../ui/FadeOverlay';
 import { DebugPanel } from '../ui/DebugPanel';
 import { CampScreen } from '../ui/CampScreen';
 import { ArchiveScreen } from '../ui/ArchiveScreen';
 import { PauseButton } from '../ui/PauseButton';
+import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
+import { CampWorld } from '../world/CampWorld';
+import { AudioManager } from '../managers/AudioManager';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
+import { WEAPONS } from '../gameplay/weapons';
+import { type CampStationId, findCampStation } from '../gameplay/campStations';
+import { isSpecialStationUnlocked, isWeaponUnlocked } from '../gameplay/progression';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
   pickVictoryDialogue,
 } from '../gameplay/dialogueLines';
-import { ARENA, PLAYER, CAMERA_SHAKE, SUBTITLE } from '../utils/constants';
+import { pickNovelScene } from '../gameplay/novelScenes';
+import {
+  ARENA,
+  PLAYER,
+  CAMERA_SHAKE,
+  SUBTITLE,
+  CAMP_CAMERA,
+  CAMP_SCENE,
+  BACKGROUND_COLOR,
+  FOG,
+} from '../utils/constants';
 
 export class Game {
   private sceneManager: SceneManager;
@@ -67,17 +84,24 @@ export class Game {
   private weaponIndicator: WeaponIndicator;
   private gameOverScreen: GameOverScreen;
   private levelUpOverlay: LevelUpOverlay;
-  private stageCompleteScreen: StageCompleteScreen;
   private hitFlash: HitFlash;
   private subtitleBar: SubtitleBar;
   private dialogueScreen: DialogueScreen;
+  private novelScene: VisualNovelScene;
+  private fadeOverlay: FadeOverlay;
   private campScreen: CampScreen;
   private archiveScreen: ArchiveScreen;
+  private campWorld: CampWorld;
+  private battleWorld!: THREE.Group;
+  private campHotspotOverlay: CampHotspotOverlay;
+  private audioManager: AudioManager;
   private campReturnConfig: { label: string; onPrimary: () => void } | null = null;
   private pauseButton: PauseButton;
   private clock: THREE.Clock;
+  private container: HTMLElement;
   private isGameOver = false;
   private isPaused = false;
+  private isCampOpen = false;
   private subtitleTimer: number;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -85,6 +109,7 @@ export class Game {
     if (!container) {
       throw new Error('Canvas must be attached to a container element');
     }
+    this.container = container;
 
     this.sceneManager = new SceneManager();
     this.rendererManager = new RendererManager(canvas);
@@ -127,15 +152,39 @@ export class Game {
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
     );
-    this.stageCompleteScreen = new StageCompleteScreen(container, () =>
-      this.handleStageContinue()
-    );
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
     this.dialogueScreen = new DialogueScreen(container);
+    this.novelScene = new VisualNovelScene(container);
+    this.fadeOverlay = new FadeOverlay(container);
+
+    this.audioManager = new AudioManager();
+    const unlockAudioOnce = () => {
+      this.audioManager.unlock();
+      container.removeEventListener('pointerdown', unlockAudioOnce);
+    };
+    container.addEventListener('pointerdown', unlockAudioOnce);
+
+    this.campWorld = new CampWorld();
+    this.campHotspotOverlay = new CampHotspotOverlay(container, {
+      onSelect: (stationId) => this.handleStationSelected(stationId),
+      onHover: (stationId) => {
+        this.campWorld.setHovered(stationId);
+        if (stationId) {
+          this.audioManager.playHover();
+        }
+      },
+    });
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
       onArchiveOpen: () => this.openArchive(),
+      onPanelClosed: () => this.returnToCampOverview(),
+      isAudioMuted: () => this.audioManager.isMuted(),
+      onToggleAudioMuted: () => {
+        this.audioManager.setMuted(!this.audioManager.isMuted());
+        return this.audioManager.isMuted();
+      },
     });
     this.archiveScreen = new ArchiveScreen(container, () => this.closeArchive());
     this.pauseButton = new PauseButton(container, () => this.openCampMidStage());
@@ -163,20 +212,25 @@ export class Game {
   }
 
   private setupWorld(): void {
+    this.battleWorld = new THREE.Group();
+
     const grid = new GridFloor();
-    this.sceneManager.add(grid.group);
+    this.battleWorld.add(grid.group);
 
     const lighting = new Lighting();
-    this.sceneManager.add(lighting.group);
+    this.battleWorld.add(lighting.group);
 
-    this.sceneManager.add(this.player.mesh);
-    this.sceneManager.add(this.coverProp.group);
-    this.sceneManager.add(this.bulletManager.mesh);
-    this.sceneManager.add(this.enemyManager.mesh);
-    this.sceneManager.add(this.crateManager.group);
-    this.sceneManager.add(this.gemManager.mesh);
-    this.sceneManager.add(this.particleManager.mesh);
-    this.sceneManager.add(this.specialWeaponManager.group);
+    this.battleWorld.add(this.player.mesh);
+    this.battleWorld.add(this.coverProp.group);
+    this.battleWorld.add(this.bulletManager.mesh);
+    this.battleWorld.add(this.enemyManager.mesh);
+    this.battleWorld.add(this.crateManager.group);
+    this.battleWorld.add(this.gemManager.mesh);
+    this.battleWorld.add(this.particleManager.mesh);
+    this.battleWorld.add(this.specialWeaponManager.group);
+
+    this.sceneManager.add(this.battleWorld);
+    this.sceneManager.add(this.campWorld.group);
   }
 
   private bindEvents(): void {
@@ -199,11 +253,14 @@ export class Game {
 
     this.healthManager.update(delta);
     this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
-    this.pauseButton.setVisible(!this.isGameOver && !this.isPaused);
+    this.pauseButton.setVisible(!this.isGameOver && !this.isPaused && !this.isCampOpen);
 
     if (!this.isGameOver && !this.isPaused) {
       this.updateGameplay(delta);
     }
+
+    this.campWorld.update(delta, this.cameraManager.camera);
+    this.campHotspotOverlay.update(this.cameraManager.camera, this.container);
 
     this.postProcessing.render(delta);
   };
@@ -384,24 +441,35 @@ export class Game {
 
   private handleStageCleared(): void {
     this.isPaused = true;
-    this.stageCompleteScreen.show(this.stageManager.currentStage);
-  }
-
-  private handleStageContinue(): void {
-    this.stageCompleteScreen.hide();
-    const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
-    this.dialogueScreen.play(dialogue, () => {
-      this.stageManager.advanceStage();
-      this.showCampForNextStage();
+    // Никакого экрана "уровень X пройден" — короткий фейд прямо в мини-диалог,
+    // чтобы не сбивать поток игрока.
+    this.fadeOverlay.transition(() => {
+      const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
+      this.dialogueScreen.play(dialogue, () => this.playPostStageNovelScene());
     });
   }
 
+  private playPostStageNovelScene(): void {
+    const scene = pickNovelScene(this.stageManager.currentStage);
+    this.novelScene.play(scene, () => {
+      this.stageManager.advanceStage();
+      this.fadeOverlay.transition(() => {
+        const dialogue = pickIntroDialogue(this.stageManager.currentStage);
+        this.dialogueScreen.play(dialogue, () => {
+          this.isPaused = false;
+        });
+      });
+    });
+  }
+
+  /** Используется только на самом старте новой игры/рестарта. */
   private showCampForNextStage(): void {
     this.showCamp('сюжетка', () => this.launchStageFromCamp());
   }
 
   private launchStageFromCamp(): void {
     this.campScreen.hide();
+    this.exitCampWorld();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -415,12 +483,75 @@ export class Game {
 
   private closeCampMidStage(): void {
     this.campScreen.hide();
+    this.exitCampWorld();
     this.isPaused = false;
   }
 
-  private showCamp(primaryLabel: string, onPrimary: () => void): void {
-    this.campReturnConfig = { label: primaryLabel, onPrimary };
-    this.campScreen.show(primaryLabel, onPrimary, this.bulletManager.weaponId);
+  private showCamp(gateLabel: string, onPrimary: () => void): void {
+    this.campReturnConfig = { label: gateLabel, onPrimary };
+    this.enterCampWorld();
+    this.campWorld.setStoryLabel(gateLabel.toUpperCase());
+    this.campScreen.show(
+      this.bulletManager.weaponId,
+      this.specialWeaponManager.equippedId,
+      this.stageManager.currentStage
+    );
+  }
+
+  private enterCampWorld(): void {
+    this.isCampOpen = true;
+    this.battleWorld.visible = false;
+    this.campWorld.group.visible = true;
+    const stage = this.stageManager.currentStage;
+    this.campWorld.setStationLocked('special', !isSpecialStationUnlocked(stage));
+    this.campWorld.setWeaponUnlocks(WEAPONS.map((weapon) => isWeaponUnlocked(weapon.id, stage)));
+    this.campWorld.setStoryProgress(stage);
+    this.cameraManager.setCampActive(true);
+    this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
+    this.campHotspotOverlay.setVisible(true);
+    this.campWorld.setActiveStation(null);
+    this.sceneManager.scene.background = new THREE.Color(CAMP_SCENE.BACKGROUND_COLOR);
+    this.sceneManager.scene.fog = new THREE.FogExp2(CAMP_SCENE.FOG_COLOR, CAMP_SCENE.FOG_DENSITY);
+    this.audioManager.startCampAmbience();
+  }
+
+  private exitCampWorld(): void {
+    this.isCampOpen = false;
+    this.battleWorld.visible = true;
+    this.campWorld.group.visible = false;
+    this.cameraManager.setCampActive(false);
+    this.campHotspotOverlay.setVisible(false);
+    this.campWorld.setActiveStation(null);
+    this.campWorld.setHovered(null);
+    this.sceneManager.scene.background = new THREE.Color(BACKGROUND_COLOR);
+    this.sceneManager.scene.fog = new THREE.FogExp2(FOG.COLOR, FOG.DENSITY);
+    this.audioManager.stopCampAmbience();
+  }
+
+  private returnToCampOverview(): void {
+    if (!this.isCampOpen) return;
+    this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
+    this.campWorld.setActiveStation(null);
+  }
+
+  private handleStationSelected(id: CampStationId): void {
+    const station = findCampStation(id);
+    this.cameraManager.setCampTarget(station.cameraPosition, station.cameraLookAt);
+    this.campWorld.setActiveStation(id);
+
+    if (id === 'story') {
+      this.audioManager.playWhoosh();
+      // Let the camera dolly toward the gate before actually advancing —
+      // a beat of "walking through" rather than an instant cut.
+      const onPrimary = this.campReturnConfig?.onPrimary;
+      window.setTimeout(() => {
+        onPrimary?.();
+      }, 500);
+      return;
+    }
+
+    this.audioManager.playSelect();
+    this.campScreen.openStation(id);
   }
 
   private openArchive(): void {
@@ -430,11 +561,12 @@ export class Game {
 
   private closeArchive(): void {
     this.archiveScreen.hide();
+    this.returnToCampOverview();
     if (this.campReturnConfig) {
       this.campScreen.show(
-        this.campReturnConfig.label,
-        this.campReturnConfig.onPrimary,
-        this.bulletManager.weaponId
+        this.bulletManager.weaponId,
+        this.specialWeaponManager.equippedId,
+        this.stageManager.currentStage
       );
     }
   }
@@ -470,7 +602,6 @@ export class Game {
 
     this.levelUpOverlay.hide();
     this.gameOverScreen.hide();
-    this.stageCompleteScreen.hide();
     this.isGameOver = false;
 
     this.isPaused = true;

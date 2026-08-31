@@ -280,65 +280,6 @@ html, body {
   pointer-events: none;
 }
 
-.stage-complete-screen {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(5, 5, 10, 0.9);
-  backdrop-filter: blur(4px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease-out;
-}
-
-.stage-complete-screen--visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.stage-complete-content {
-  text-align: center;
-  padding: 32px;
-}
-
-.stage-complete-title {
-  font-family: sans-serif;
-  font-size: 2rem;
-  font-weight: 700;
-  color: #f5f0ff;
-  text-shadow: 0 0 24px rgba(59, 255, 176, 0.5);
-  margin-bottom: 10px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.stage-complete-subtitle {
-  font-family: sans-serif;
-  font-size: 1rem;
-  color: #8a7fae;
-  margin-bottom: 26px;
-}
-
-.stage-complete-continue {
-  font-family: sans-serif;
-  font-size: 1rem;
-  padding: 12px 28px;
-  background: transparent;
-  border: 1px solid rgba(59, 255, 176, 0.5);
-  color: #c9ffe8;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-.stage-complete-continue:hover,
-.stage-complete-continue:active {
-  background: rgba(59, 255, 176, 0.15);
-  box-shadow: 0 0 20px rgba(59, 255, 176, 0.4);
-}
-
 .weapon-indicator {
   position: absolute;
   bottom: calc(env(safe-area-inset-bottom, 24px) + 34px);
@@ -570,51 +511,160 @@ html, body {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(3, 3, 8, 0.95);
+  flex-direction: column;
+  justify-content: space-between;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease-out;
-  overflow-y: auto;
 }
 
 .camp-screen--visible {
   opacity: 1;
-  pointer-events: auto;
 }
 
-.camp-content {
+.camp-topbar {
+  pointer-events: auto;
+  align-self: center;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 24px;
-  max-width: 420px;
-  width: 100%;
+  gap: 10px;
+  margin-top: env(safe-area-inset-top, 16px);
+  padding: 6px 20px 6px 6px;
+  background: rgba(8, 6, 16, 0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(155, 127, 255, 0.25);
+  border-radius: 16px;
 }
 
 .camp-portrait canvas {
-  width: 160px;
-  height: 218px;
-  filter: drop-shadow(0 0 26px rgba(155, 127, 255, 0.3));
+  width: 48px;
+  height: 66px;
+  display: block;
+  filter: drop-shadow(0 0 14px rgba(155, 127, 255, 0.35));
+}
+
+.camp-topbar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .camp-title {
   font-family: sans-serif;
-  font-size: 1.4rem;
+  font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f5f0ff;
-  text-shadow: 0 0 20px rgba(155, 127, 255, 0.5);
+  text-shadow: 0 0 16px rgba(155, 127, 255, 0.5);
   margin: 0;
+}
+
+.camp-info-row {
+  display: flex;
+  gap: 8px;
+  font-family: sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: #a89bcf;
+}
+
+.camp-info-stage {
+  color: #ffb066;
+}
+
+.camp-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px;
+}
+
+.camp-settings-label {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  color: #d6c9ff;
+}
+
+.camp-settings-toggle {
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(59, 255, 176, 0.16);
+  border: 1px solid rgba(59, 255, 176, 0.55);
+  color: #c9ffe8;
+  text-transform: uppercase;
+}
+
+.camp-settings-toggle--off {
+  background: rgba(255, 59, 110, 0.12);
+  border-color: rgba(255, 59, 110, 0.45);
+  color: #ffc2d2;
+}
+
+.camp-panel {
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 52vh;
+  background: rgba(10, 8, 18, 0.92);
+  border-top: 1px solid rgba(155, 127, 255, 0.35);
+  border-radius: 18px 18px 0 0;
+  padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 16px));
+  transform: translateY(100vh);
+  transition: transform 0.3s ease-out;
+  overflow-y: auto;
+}
+
+.camp-panel--visible {
+  transform: translateY(0);
+}
+
+.camp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.camp-panel-title {
+  font-family: sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5f0ff;
+}
+
+.camp-panel-close {
+  font-family: sans-serif;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid rgba(155, 127, 255, 0.4);
+  color: #d6c9ff;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.camp-soon-notice {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  color: #a89bcf;
+  line-height: 1.5;
+  padding: 8px 0 4px;
 }
 
 .camp-weapon-row {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
 }
 
@@ -635,38 +685,48 @@ html, body {
   color: #f5f0ff;
 }
 
-.camp-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  width: 100%;
+.camp-hotspots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
 }
 
-.camp-secondary-button,
-.camp-primary-button {
-  flex: 1;
-  font-family: sans-serif;
-  font-size: 0.9rem;
-  padding: 12px 20px;
-  border-radius: 8px;
+.camp-hotspots--visible {
+  opacity: 1;
+}
+
+.camp-hotspot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 170px;
+  height: 92px;
+  display: none;
+  pointer-events: auto;
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.camp-secondary-button {
-  background: transparent;
-  border: 1px solid rgba(155, 127, 255, 0.4);
-  color: #d6c9ff;
+.camp-weapon-button--locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.camp-primary-button {
-  background: rgba(59, 255, 176, 0.15);
-  border: 1px solid rgba(59, 255, 176, 0.5);
-  color: #c9ffe8;
-}
-
-.camp-secondary-button:hover,
-.camp-primary-button:hover {
-  filter: brightness(1.2);
+.camp-lock-hint {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #8a7ba8;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .archive-screen {
@@ -749,4 +809,134 @@ html, body {
   color: #d6c9ff;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.novel-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #030308;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease-out;
+  cursor: pointer;
+  z-index: 20;
+}
+
+.novel-scene--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.novel-scene-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.novel-scene-actors {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 6vw;
+}
+
+.novel-actor {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0.55;
+  filter: brightness(0.65) saturate(0.7);
+  transition: opacity 0.25s ease-out, filter 0.25s ease-out, transform 0.25s ease-out;
+  transform: translateY(0);
+}
+
+.novel-actor canvas {
+  width: min(46vw, 260px);
+  height: min(46vw, 260px);
+}
+
+.novel-actor--active {
+  opacity: 1;
+  filter: brightness(1) saturate(1);
+  transform: translateY(-4px);
+}
+
+.novel-actor--left {
+  order: 1;
+  margin-right: auto;
+}
+
+.novel-actor--center-left {
+  order: 1;
+}
+
+.novel-actor--center {
+  order: 2;
+  margin: 0 auto;
+}
+
+.novel-actor--center-right {
+  order: 2;
+}
+
+.novel-actor--right {
+  order: 3;
+  margin-left: auto;
+}
+
+.novel-scene-textbox {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 100%;
+  background: rgba(8, 6, 16, 0.95);
+  border-top: 1px solid rgba(155, 127, 255, 0.35);
+  padding: 18px 24px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.novel-scene-name {
+  font-family: sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.novel-scene-text {
+  font-family: sans-serif;
+  font-size: 1rem;
+  color: #e6ddff;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.novel-scene-hint {
+  align-self: flex-end;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  color: #6a5f8a;
+  letter-spacing: 0.04em;
+}
+
+.fade-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease-out;
+  z-index: 30;
+}
+
+.fade-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
 }

@@ -23,7 +23,7 @@ export function createLabelTexture(text: string, color: string): THREE.CanvasTex
   ctx.font = 'bold 56px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, width / 2, height / 2);
+  ctx.fillText(text, width / 2, height / 2, width - 48);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
