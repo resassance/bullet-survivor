@@ -7,7 +7,7 @@ export class StageIndicator {
     container.appendChild(this.element);
   }
 
-  public update(stage: number, spawned: number, total: number): void {
-    this.element.textContent = `УРОВЕНЬ ${stage} · ${Math.min(spawned, total)}/${total}`;
+  public update(stage: number, spawned: number, total: number, prefix = 'УРОВЕНЬ'): void {
+    this.element.textContent = `${prefix} ${stage} · ${Math.min(spawned, total)}/${total}`;
   }
 }

@@ -10,6 +10,7 @@ import {
   isSpecialStationUnlocked,
   specialStationUnlockStage,
 } from '../gameplay/progression';
+import { STORY_PROGRESSION } from '../utils/constants';
 
 export interface CampScreenCallbacks {
   onWeaponSelected: (weaponId: string) => void;
@@ -32,6 +33,7 @@ export class CampScreen {
   private selectedWeaponId = 'standard';
   private selectedSpecialId: SpecialWeaponId | null = null;
   private currentStage = 1;
+  private storyCompleted = false;
   private callbacks: CampScreenCallbacks;
 
   constructor(container: HTMLElement, callbacks: CampScreenCallbacks) {
@@ -81,7 +83,29 @@ export class CampScreen {
     }
 
     if (id === 'story') {
-      // The story gate triggers stage progression directly; it has no drawer panel.
+      
+      
+      if (this.storyCompleted) {
+        this.panelTitle.textContent = findCampStation('story').label;
+        this.panelBody.innerHTML = '';
+        this.renderSoonPanel(
+          `История завершена (${STORY_PROGRESSION.TOTAL_STAGES}/${STORY_PROGRESSION.TOTAL_STAGES}). Загляните в бесконечный режим.`
+        );
+        this.panel.classList.add('camp-panel--visible');
+      }
+      return;
+    }
+
+    if (id === 'endless') {
+      
+      if (!this.storyCompleted) {
+        this.panelTitle.textContent = findCampStation('endless').label;
+        this.panelBody.innerHTML = '';
+        this.renderSoonPanel(
+          `Откроется после прохождения истории (${this.currentStage}/${STORY_PROGRESSION.TOTAL_STAGES}).`
+        );
+        this.panel.classList.add('camp-panel--visible');
+      }
       return;
     }
 
@@ -222,7 +246,9 @@ export class CampScreen {
   }
 
   private updateInfoRow(): void {
-    this.infoStage.textContent = `УРОВЕНЬ ${this.currentStage}`;
+    this.infoStage.textContent = this.storyCompleted
+      ? `ИСТОРИЯ ЗАВЕРШЕНА · ${STORY_PROGRESSION.TOTAL_STAGES}/${STORY_PROGRESSION.TOTAL_STAGES}`
+      : `УРОВЕНЬ ${this.currentStage}/${STORY_PROGRESSION.TOTAL_STAGES}`;
     const weaponName = WEAPONS.find((weapon) => weapon.id === this.selectedWeaponId)?.name ?? '';
     const specialName = this.selectedSpecialId
       ? SPECIAL_WEAPONS.find((special) => special.id === this.selectedSpecialId)?.name
@@ -252,11 +278,13 @@ export class CampScreen {
   public show(
     selectedWeaponId: string,
     selectedSpecialId: SpecialWeaponId | null,
-    currentStage: number
+    currentStage: number,
+    storyCompleted = false
   ): void {
     this.selectedWeaponId = selectedWeaponId;
     this.selectedSpecialId = selectedSpecialId;
     this.currentStage = currentStage;
+    this.storyCompleted = storyCompleted;
     this.updateInfoRow();
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');

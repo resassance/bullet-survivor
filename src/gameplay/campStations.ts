@@ -1,4 +1,4 @@
-export type CampStationId = 'weapon' | 'archive' | 'skills' | 'special' | 'settings' | 'story';
+export type CampStationId = 'weapon' | 'archive' | 'endless' | 'special' | 'settings' | 'story';
 
 export interface Vec3Like {
   x: number;
@@ -39,8 +39,8 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     accentColorHex: 0x3bd6ff,
   },
   {
-    id: 'skills',
-    label: 'ПРОКАЧКА',
+    id: 'endless',
+    label: 'БЕСКОНЕЧНЫЙ РЕЖИМ',
     ready: false,
     propPosition: { x: -5.4, y: 0, z: 5.8 },
     cameraPosition: { x: -3.5, y: 2.4, z: 9.2 },

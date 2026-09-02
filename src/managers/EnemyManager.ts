@@ -196,6 +196,25 @@ export class EnemyManager {
     }
   }
 
+  /** Бафф-карточка "Рывок-взрыв" (только бесконечка): убивает всех живых врагов в радиусе точки. */
+  public damageInRadius(
+    x: number,
+    z: number,
+    radius: number,
+    onKilled: (x: number, y: number, z: number) => void
+  ): void {
+    const radiusSq = radius * radius;
+    for (const slot of this.slots) {
+      if (!slot.alive) continue;
+      const dx = slot.x - x;
+      const dz = slot.z - z;
+      if (dx * dx + dz * dz <= radiusSq) {
+        slot.alive = false;
+        onKilled(slot.x, slot.y, slot.z);
+      }
+    }
+  }
+
   public reset(): void {
     for (const slot of this.slots) {
       slot.alive = false;

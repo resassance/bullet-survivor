@@ -88,6 +88,7 @@ export const BULLET_LIMITS = {
   MAX_PIERCE: 3,
   MAX_POISON_STACKS: 5,
   MAX_MAGAZINE_SIZE: 14,
+  MIN_RELOAD_MULTIPLIER: 0.35,
 };
 
 export const ENEMY = {
@@ -120,6 +121,24 @@ export const STAGE = {
   BASE_SPAWN_COUNT: 1,
   MAX_SPAWN_COUNT: 3,
   SPAWN_COUNT_STAGE_STEP: 2,
+};
+
+/** Длина сюжетной кампании и тихие (без UI) баффы за прохождение этапа. */
+export const STORY_PROGRESSION = {
+  TOTAL_STAGES: 10,
+  DAMAGE_PER_STAGE: 0.2,
+  FIRE_RATE_MULT_PER_STAGE: 1.04,
+};
+
+/** Настройка баффов-карточек левел-апа (доступны только в бесконечном режиме). */
+export const SKILL_TUNING = {
+  VITALITY_MAX_HP_BONUS: 2,
+  REGEN_PER_STACK: 0.15,
+  MAGAZINE_BONUS: 2,
+  RELOAD_SPEED_MULTIPLIER: 0.82,
+  EXPLOSION_CHANCE_PER_STACK: 0.12,
+  EXPLOSION_CHANCE_MAX: 0.36,
+  EXPLOSION_RADIUS: 2.2,
 };
 
 export const CRATE = {

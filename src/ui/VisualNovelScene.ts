@@ -6,6 +6,12 @@ import {
   type NovelCharacterId,
 } from '../gameplay/novelScenes';
 
+/**
+ * Полноэкранная сцена визуальной новеллы: отдельный "экран" между уровнями,
+ * со своим фоном и произвольным количеством спрайтов персонажей на сцене.
+ * Технически не связана с мини-диалогом (DialogueScreen) поверх геймплея —
+ * это самостоятельный шаг, идущий следом за ним.
+ */
 export class VisualNovelScene {
   private element: HTMLDivElement;
   private backgroundElement: HTMLDivElement;

@@ -245,7 +245,7 @@ export class CampWorld {
     crates.position.set(4.6, 0, 0.6);
     crates.visible = false;
     this.group.add(crates);
-    this.progressDecor.push({ stage: 12, object: crates });
+    this.progressDecor.push({ stage: 8, object: crates });
   }
 
   /** Reveals background decor once the story has advanced far enough — camp visibly "fills in". */
@@ -367,7 +367,7 @@ export class CampWorld {
         propGroup.add(screen);
         break;
       }
-      case 'skills': {
+      case 'endless': {
         const board = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2, 0.15), baseMaterial);
         board.position.y = 1.1;
         propGroup.add(board);
@@ -490,9 +490,9 @@ export class CampWorld {
     }
   }
 
-  /** Updates the story gate's label text (e.g. "ИСТОРИЯ" vs "В БОЙ" when resuming a paused run). */
-  public setStoryLabel(text: string): void {
-    const visual = this.stations.get('story');
+  /** Обновляет текст надписи над воротами конкретной станции (например, "СЮЖЕТКА" vs "ПРОДОЛЖИТЬ БОЙ"). */
+  public setGateLabel(id: CampStationId, text: string): void {
+    const visual = this.stations.get(id);
     if (!visual) return;
 
     const material = visual.label.material as THREE.SpriteMaterial;
@@ -501,6 +501,13 @@ export class CampWorld {
     material.map = texture;
     material.needsUpdate = true;
     oldTexture?.dispose();
+  }
+
+  /** Возвращает надпись станции к её значению по умолчанию (с учётом текущего статуса блокировки). */
+  public resetGateLabel(id: CampStationId): void {
+    const visual = this.stations.get(id);
+    if (!visual) return;
+    this.setGateLabel(id, this.labelText(visual.definition, visual.locked));
   }
 
   public setHovered(id: CampStationId | null): void {
@@ -552,7 +559,7 @@ export class CampWorld {
       object.rotation.y += delta * 0.6;
     }
 
-    // Subtle idle breathing so the character doesn't look frozen.
+    
     this.character.position.y = this.characterBaseY + Math.sin(this.elapsed * 1.4) * 0.03;
     const breathScale = 1 + Math.sin(this.elapsed * 1.4) * 0.015;
     this.character.scale.set(breathScale, 1, 1);
