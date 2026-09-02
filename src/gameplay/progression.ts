@@ -7,11 +7,11 @@ export const WEAPON_UNLOCK_STAGE: Record<string, number> = {
   rapid: 7,
 };
 
-/** Stage at which each special weapon is unlocked. */
+/** Stage at which each special weapon is unlocked. Rescaled to fit the 10-stage campaign. */
 export const SPECIAL_UNLOCK_STAGE: Record<SpecialWeaponId, number> = {
-  lightning: 10,
-  windSlash: 15,
-  grenade: 20,
+  lightning: 6,
+  windSlash: 8,
+  grenade: 10,
 };
 
 export function isWeaponUnlocked(weaponId: string, stage: number): boolean {

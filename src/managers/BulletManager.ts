@@ -33,6 +33,7 @@ export class BulletManager {
   private currentAmmo = WEAPONS[0].magazineSize;
   private reloadTimer = 0;
   private reloading = false;
+  private reloadSpeedMultiplier = 1;
   public poisonStacks = 0;
 
   constructor() {
@@ -148,7 +149,7 @@ export class BulletManager {
   private startReload(): void {
     if (this.reloading) return;
     this.reloading = true;
-    this.reloadTimer = this.weapon.reloadDuration;
+    this.reloadTimer = this.weapon.reloadDuration * this.reloadSpeedMultiplier;
     this.burstShotsRemaining = 0;
   }
 
@@ -223,6 +224,14 @@ export class BulletManager {
     this.currentAmmo = Math.min(this.currentAmmo + amount, this.magazineCapacity);
   }
 
+  /** Бафф-карточка "Быстрая перезарядка" (только бесконечка): multiplier < 1 ускоряет релоад. */
+  public increaseReloadSpeed(multiplier: number): void {
+    this.reloadSpeedMultiplier = Math.max(
+      this.reloadSpeedMultiplier * multiplier,
+      BULLET_LIMITS.MIN_RELOAD_MULTIPLIER
+    );
+  }
+
   private get fireRate(): number {
     return Math.min(this.weapon.fireRate * this.fireRateMultiplier, BULLET_LIMITS.MAX_FIRE_RATE);
   }
@@ -244,7 +253,7 @@ export class BulletManager {
 
   public get reloadProgress(): number {
     if (!this.reloading) return 1;
-    return 1 - this.reloadTimer / this.weapon.reloadDuration;
+    return 1 - this.reloadTimer / (this.weapon.reloadDuration * this.reloadSpeedMultiplier);
   }
 
   public get ammo(): number {
@@ -285,6 +294,34 @@ export class BulletManager {
     this.damageBonus = 0;
     this.poisonStacks = 0;
     this.magazineBonus = 0;
+    this.reloadSpeedMultiplier = 1;
+    this.currentAmmo = this.magazineCapacity;
+    this.reloading = false;
+    this.reloadTimer = 0;
+  }
+
+  /**
+   * Сбрасывает только накопленные бонусы (баффы левел-апа, тихие сюжетные баффы),
+   * не трогая выбранное в лагере оружие — используется для "свежего старта" забега
+   * в бесконечном режиме и для возврата стрельбы к базовым статам оружия.
+   */
+  public resetRunBonuses(): void {
+    for (const slot of this.slots) {
+      slot.alive = false;
+      slot.pierceRemaining = 0;
+    }
+    this.mesh.count = 0;
+    this.fireCooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
+    this.fireRateMultiplier = 1;
+    this.bulletSpeedMultiplier = 1;
+    this.extraBurstShots = 0;
+    this.pierceCount = 0;
+    this.damageBonus = 0;
+    this.poisonStacks = 0;
+    this.magazineBonus = 0;
+    this.reloadSpeedMultiplier = 1;
     this.currentAmmo = this.magazineCapacity;
     this.reloading = false;
     this.reloadTimer = 0;

@@ -1,7 +1,22 @@
+export interface GameOverOptions {
+  title?: string;
+  subtitle?: string;
+  buttonLabel?: string;
+  onAction?: () => void;
+}
+
 export class GameOverScreen {
   private element: HTMLDivElement;
+  private titleElement: HTMLElement;
+  private subtitleElement: HTMLElement;
+  private buttonElement: HTMLButtonElement;
+  private defaultAction: () => void;
+  private currentAction: () => void;
 
   constructor(container: HTMLElement, onRestart: () => void) {
+    this.defaultAction = onRestart;
+    this.currentAction = onRestart;
+
     this.element = document.createElement('div');
     this.element.className = 'game-over-screen';
     this.element.innerHTML = `
@@ -14,13 +29,17 @@ export class GameOverScreen {
 
     container.appendChild(this.element);
 
-    const button = this.element.querySelector(
-      '.game-over-restart'
-    ) as HTMLButtonElement;
-    button.addEventListener('click', onRestart);
+    this.titleElement = this.element.querySelector('.game-over-title') as HTMLElement;
+    this.subtitleElement = this.element.querySelector('.game-over-subtitle') as HTMLElement;
+    this.buttonElement = this.element.querySelector('.game-over-restart') as HTMLButtonElement;
+    this.buttonElement.addEventListener('click', () => this.currentAction());
   }
 
-  public show(): void {
+  public show(options?: GameOverOptions): void {
+    this.titleElement.textContent = options?.title ?? 'не сегодня';
+    this.subtitleElement.textContent = options?.subtitle ?? 'эфириалы забрали ещё одну ночь';
+    this.buttonElement.textContent = options?.buttonLabel ?? 'начать заново';
+    this.currentAction = options?.onAction ?? this.defaultAction;
     this.element.classList.add('game-over-screen--visible');
   }
 

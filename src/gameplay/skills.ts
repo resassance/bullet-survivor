@@ -4,9 +4,15 @@ export interface Skill {
   description: string;
 }
 
+/** Карточки левел-апа — используются только в бесконечном режиме. */
 export const SKILLS: Skill[] = [
   { id: 'ricochet', name: 'Рикошет', description: 'Пули пробивают ещё одного эфириала' },
   { id: 'poisonBullets', name: 'Ядовитые выстрелы', description: 'Пули оставляют яд, наносящий урон со временем' },
+  { id: 'vitality', name: 'Живучесть', description: 'Увеличивает максимум HP и лечит на ту же величину' },
+  { id: 'regen', name: 'Регенерация', description: 'Медленно восстанавливает HP каждую секунду' },
+  { id: 'magazine', name: 'Расширенный магазин', description: 'Увеличивает размер обоймы' },
+  { id: 'fastReload', name: 'Быстрая перезарядка', description: 'Сокращает время перезарядки' },
+  { id: 'explosiveRounds', name: 'Рывок-взрыв', description: 'Шанс, что убитый враг взорвётся и заденет соседей' },
 ];
 
 export function pickRandomSkills(count: number): Skill[] {
