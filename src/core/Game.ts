@@ -60,6 +60,7 @@ import {
   FOG,
   STORY_PROGRESSION,
   SKILL_TUNING,
+  AIM_ASSIST,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -291,7 +292,12 @@ export class Game {
       this.bulletManager.isReloading
     );
 
-    this.bulletManager.update(delta, this.player.position, () => this.player.triggerShot());
+    this.bulletManager.update(
+      delta,
+      this.player.position,
+      () => this.player.triggerShot(),
+      this.enemyManager.slots
+    );
     this.ammoIndicator.update(
       this.bulletManager.ammo,
       this.bulletManager.magazineCapacity,
@@ -462,6 +468,9 @@ export class Game {
           SKILL_TUNING.EXPLOSION_CHANCE_MAX
         );
         break;
+      case 'aimAssist':
+        this.bulletManager.increaseAssist(AIM_ASSIST.ENDLESS_CARD_BONUS);
+        break;
     }
   }
 
@@ -520,15 +529,12 @@ export class Game {
 
   private handleStageCleared(): void {
     if (this.mode === 'endless') {
-      
       this.endlessStageManager.advanceStage();
       return;
     }
 
     this.isPaused = true;
     const isFinalStage = this.stageManager.currentStage >= STORY_PROGRESSION.TOTAL_STAGES;
-    
-    
     this.fadeOverlay.transition(() => {
       const dialogue = pickVictoryDialogue(this.stageManager.currentStage);
       this.dialogueScreen.play(dialogue, () => this.playPostStageNovelScene(isFinalStage));
@@ -546,6 +552,7 @@ export class Game {
       }
 
       this.stageManager.advanceStage();
+      this.syncStoryAssist();
       this.fadeOverlay.transition(() => {
         const dialogue = pickIntroDialogue(this.stageManager.currentStage);
         this.dialogueScreen.play(dialogue, () => {
@@ -555,12 +562,20 @@ export class Game {
     });
   }
 
-  /** Тихий бафф за пройденный этап сюжета — небольшой прирост урона и скорострельности, без UI. */
   private applyStoryStageBuff(): void {
     this.storyDamageBonus += STORY_PROGRESSION.DAMAGE_PER_STAGE;
     this.storyFireRateMultiplier *= STORY_PROGRESSION.FIRE_RATE_MULT_PER_STAGE;
     this.bulletManager.increaseDamage(STORY_PROGRESSION.DAMAGE_PER_STAGE);
     this.bulletManager.increaseFireRate(STORY_PROGRESSION.FIRE_RATE_MULT_PER_STAGE);
+  }
+
+  private syncStoryAssist(): void {
+    const stage = this.stageManager.currentStage;
+    const progress = Math.min(
+      1,
+      Math.max(0, (stage - 1) / (STORY_PROGRESSION.TOTAL_STAGES - 1))
+    );
+    this.bulletManager.setAssistStrength(AIM_ASSIST.STORY_MAX * (1 - progress));
   }
 
   private finishStory(): void {
@@ -575,7 +590,6 @@ export class Game {
     this.returnToCampHub();
   }
 
-  /** Открывает лагерь как хаб: старт новой игры, рестарт, возврат после титров/забега бесконечки. */
   private returnToCampHub(): void {
     this.mode = 'story';
     if (this.storyCompleted) {
@@ -589,6 +603,7 @@ export class Game {
     this.campScreen.hide();
     this.exitCampWorld();
     this.mode = 'story';
+    this.syncStoryAssist();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -603,6 +618,7 @@ export class Game {
     this.endlessStageManager.reset();
     this.healthManager.reset();
     this.bulletManager.resetRunBonuses();
+    this.bulletManager.setAssistStrength(AIM_ASSIST.ENDLESS_BASE);
     this.levelSystem.reset();
     this.enemyManager.reset();
     this.crateManager.reset();
@@ -638,10 +654,10 @@ export class Game {
     this.player.resetPosition();
 
     this.healthManager.reset();
-    
     this.bulletManager.resetRunBonuses();
     this.bulletManager.increaseDamage(this.storyDamageBonus);
     this.bulletManager.increaseFireRate(this.storyFireRateMultiplier);
+    this.syncStoryAssist();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
@@ -734,10 +750,7 @@ export class Game {
       }
 
       this.audioManager.playWhoosh();
-      
-      
       if (this.campReturnConfig?.gateId === id) {
-        
         const onPrimary = this.campReturnConfig.onPrimary;
         window.setTimeout(() => onPrimary(), 500);
         return;

@@ -18,7 +18,6 @@ export class AudioManager {
   private fireBuffer: AudioBuffer | null = null;
   private muted = false;
 
-  /** Lazily creates the AudioContext. Returns null if WebAudio isn't supported. */
   private ensureContext(): AudioContext | null {
     if (this.context) return this.context;
 
@@ -39,13 +38,10 @@ export class AudioManager {
     return this.context;
   }
 
-  /** Call on the first user gesture to satisfy mobile/desktop autoplay policies. */
   public unlock(): void {
     const ctx = this.ensureContext();
     if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {
-        // Ignore — will retry on the next gesture.
-      });
+      ctx.resume().catch(() => {});
     }
   }
 
@@ -99,9 +95,7 @@ export class AudioManager {
     if (this.ambientSource) {
       try {
         this.ambientSource.stop();
-      } catch {
-        // Already stopped.
-      }
+      } catch {}
       this.ambientSource.disconnect();
       this.ambientSource = null;
     }

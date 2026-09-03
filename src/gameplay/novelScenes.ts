@@ -1,17 +1,3 @@
-/**
- * Схема сцен визуальной новеллы.
- *
- * Каждая NovelScene — это отдельный "экран" со своим фоном и набором
- * персонажей на сцене (0..N), поверх которых идут реплики. Реплика
- * указывает, кто говорит (characterId), и может менять состояние сцены
- * (кто активен/подсвечен, кто заходит/уходит) через необязательные поля.
- *
- * Фон и портреты сейчас заданы как id — реальные картинки/арты можно
- * подключить позже, подставив по этим id пути к файлам в novelArt.ts
- * (или расширив NOVEL_BACKGROUNDS / NOVEL_CHARACTERS ниже, ничего в
- * остальном коде менять не придётся).
- */
-
 export type NovelBackgroundId =
   | 'camp_perimeter_night'
   | 'ruined_highway'
@@ -20,7 +6,6 @@ export type NovelBackgroundId =
 
 export interface NovelBackgroundDef {
   id: NovelBackgroundId;
-  /** Цвет-заглушка (градиент), пока нет арта. */
   fallbackGradient: [string, string];
 }
 
@@ -44,7 +29,6 @@ export const NOVEL_CHARACTERS: Record<NovelCharacterId, NovelCharacterDef> = {
   ren: { id: 'ren', displayName: 'Рен', color: '#3bffb0' },
 };
 
-/** Горизонтальная позиция спрайта персонажа на сцене. */
 export type NovelSlot = 'left' | 'center' | 'right' | 'center-left' | 'center-right';
 
 export interface NovelActorPlacement {
@@ -53,7 +37,6 @@ export interface NovelActorPlacement {
 }
 
 export interface NovelLine {
-  /** Кто говорит. Если персонажа нет среди actors — он всё равно будет добавлен в сцену. */
   characterId: NovelCharacterId;
   text: string;
 }
@@ -61,12 +44,9 @@ export interface NovelLine {
 export interface NovelScene {
   id: string;
   background: NovelBackgroundId;
-  /** Все персонажи, присутствующие в сцене (могут не говорить). */
   actors: NovelActorPlacement[];
   lines: NovelLine[];
 }
-
-// --- Контент: пока по одной сцене на этап (после мини-диалога победы) ---
 
 export const NOVEL_SCENES: NovelScene[] = [
   {

@@ -196,7 +196,6 @@ export class EnemyManager {
     }
   }
 
-  /** Бафф-карточка "Рывок-взрыв" (только бесконечка): убивает всех живых врагов в радиусе точки. */
   public damageInRadius(
     x: number,
     z: number,

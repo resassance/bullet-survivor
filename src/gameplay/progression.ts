@@ -1,13 +1,11 @@
 import type { SpecialWeaponId } from './specialWeapons';
 
-/** Stage at which each regular weapon becomes selectable in camp. */
 export const WEAPON_UNLOCK_STAGE: Record<string, number> = {
   standard: 1,
   scatter: 3,
   rapid: 7,
 };
 
-/** Stage at which each special weapon is unlocked. Rescaled to fit the 10-stage campaign. */
 export const SPECIAL_UNLOCK_STAGE: Record<SpecialWeaponId, number> = {
   lightning: 6,
   windSlash: 8,
@@ -23,7 +21,6 @@ export function isSpecialUnlocked(specialId: SpecialWeaponId, stage: number): bo
   return stage >= SPECIAL_UNLOCK_STAGE[specialId];
 }
 
-/** Stage at which the special weapon station itself opens (first special becomes available). */
 export function specialStationUnlockStage(): number {
   return Math.min(...Object.values(SPECIAL_UNLOCK_STAGE));
 }

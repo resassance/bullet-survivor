@@ -27,7 +27,6 @@ export class ExpBar {
     this.levelElement.textContent = `ур. ${level}`;
   }
 
-  /** Полоса опыта нужна только в бесконечном режиме — в сюжетке скрыта. */
   public setVisible(visible: boolean): void {
     this.wrapper.classList.toggle('exp-bar-wrapper--hidden', !visible);
   }

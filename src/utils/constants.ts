@@ -123,14 +123,12 @@ export const STAGE = {
   SPAWN_COUNT_STAGE_STEP: 2,
 };
 
-/** Длина сюжетной кампании и тихие (без UI) баффы за прохождение этапа. */
 export const STORY_PROGRESSION = {
   TOTAL_STAGES: 10,
   DAMAGE_PER_STAGE: 0.2,
   FIRE_RATE_MULT_PER_STAGE: 1.04,
 };
 
-/** Настройка баффов-карточек левел-апа (доступны только в бесконечном режиме). */
 export const SKILL_TUNING = {
   VITALITY_MAX_HP_BONUS: 2,
   REGEN_PER_STACK: 0.15,
@@ -139,6 +137,14 @@ export const SKILL_TUNING = {
   EXPLOSION_CHANCE_PER_STACK: 0.12,
   EXPLOSION_CHANCE_MAX: 0.36,
   EXPLOSION_RADIUS: 2.2,
+};
+
+export const AIM_ASSIST = {
+  STORY_MAX: 0.85,
+  ENDLESS_BASE: 0.12,
+  ENDLESS_CARD_BONUS: 0.05,
+  ENDLESS_MAX: 0.32,
+  MAGNET_RADIUS: 1.6,
 };
 
 export const CRATE = {
