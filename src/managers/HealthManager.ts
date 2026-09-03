@@ -36,13 +36,11 @@ export class HealthManager {
     return true;
   }
 
-  /** Тихий бафф-карточка "Живучесть": расширяет максимум HP и лечит на ту же величину. */
   public increaseMaxHp(amount: number): void {
     this.maxHp += amount;
     this.hp = Math.min(this.maxHp, this.hp + amount);
   }
 
-  /** Тихий бафф-карточка "Регенерация": добавляет пассивное авто-восстановление HP/сек. */
   public addRegen(amountPerSecond: number): void {
     this.regenPerSecond += amountPerSecond;
   }

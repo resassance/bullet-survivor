@@ -210,7 +210,6 @@ export class CampWorld {
     return mesh;
   }
 
-  /** Small background flourishes that fade in as the story progresses — camp "fills in" over time. */
   private buildProgressDecor(): void {
     const bannerMaterial = new THREE.MeshStandardMaterial({
       color: 0x3a2416,
@@ -248,7 +247,6 @@ export class CampWorld {
     this.progressDecor.push({ stage: 8, object: crates });
   }
 
-  /** Reveals background decor once the story has advanced far enough — camp visibly "fills in". */
   public setStoryProgress(stage: number): void {
     for (const decor of this.progressDecor) {
       decor.object.visible = stage >= decor.stage;
@@ -459,7 +457,6 @@ export class CampWorld {
     return locked ? `${station.label} · ЗАКРЫТО` : station.label;
   }
 
-  /** Marks a station unlocked/locked at runtime (e.g. special weapons gated by story stage). */
   public setStationLocked(id: CampStationId, locked: boolean): void {
     const visual = this.stations.get(id);
     if (!visual || visual.locked === locked) return;
@@ -482,7 +479,6 @@ export class CampWorld {
     oldTexture?.dispose();
   }
 
-  /** Lights up each weapon rack barrel individually as that weapon is unlocked by story stage. */
   public setWeaponUnlocks(unlockedFlags: boolean[]): void {
     for (let i = 0; i < this.weaponBarrelMaterials.length; i++) {
       const unlocked = unlockedFlags[i] ?? false;
@@ -490,7 +486,6 @@ export class CampWorld {
     }
   }
 
-  /** Обновляет текст надписи над воротами конкретной станции (например, "СЮЖЕТКА" vs "ПРОДОЛЖИТЬ БОЙ"). */
   public setGateLabel(id: CampStationId, text: string): void {
     const visual = this.stations.get(id);
     if (!visual) return;
@@ -503,7 +498,6 @@ export class CampWorld {
     oldTexture?.dispose();
   }
 
-  /** Возвращает надпись станции к её значению по умолчанию (с учётом текущего статуса блокировки). */
   public resetGateLabel(id: CampStationId): void {
     const visual = this.stations.get(id);
     if (!visual) return;
@@ -559,7 +553,6 @@ export class CampWorld {
       object.rotation.y += delta * 0.6;
     }
 
-    
     this.character.position.y = this.characterBaseY + Math.sin(this.elapsed * 1.4) * 0.03;
     const breathScale = 1 + Math.sin(this.elapsed * 1.4) * 0.015;
     this.character.scale.set(breathScale, 1, 1);

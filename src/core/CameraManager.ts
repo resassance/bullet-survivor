@@ -73,12 +73,10 @@ export class CameraManager {
     this.shakeElapsed = 0;
   }
 
-  /** Enables/disables blending toward the camp camera target. */
   public setCampActive(active: boolean): void {
     this.campActive = active;
   }
 
-  /** Sets the camera position/lookAt the camp blend dollies toward (overview or a station). */
   public setCampTarget(position: Vec3Like, lookAt: Vec3Like): void {
     this.campTargetPosition.set(position.x, position.y, position.z);
     this.campTargetLookAt.set(lookAt.x, lookAt.y, lookAt.z);
@@ -103,9 +101,6 @@ export class CameraManager {
     const campSmoothing = 1 - Math.exp(-CAMP_CAMERA.BLEND_SPEED * delta);
     this.campBlend += (campBlendTarget - this.campBlend) * campSmoothing;
 
-    // Always ease the camp "current" position toward its target, independent of
-    // campBlend activation, so switching stations while already in camp dollies
-    // smoothly instead of snapping (campBlend alone only smooths entering/leaving camp).
     this.campCurrentPosition.lerp(this.campTargetPosition, campSmoothing);
     this.campCurrentLookAt.lerp(this.campTargetLookAt, campSmoothing);
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BULLET, BULLET_LIMITS, ARENA } from '../utils/constants';
+import { BULLET, BULLET_LIMITS, ARENA, AIM_ASSIST } from '../utils/constants';
 import { WEAPONS, findWeapon } from '../gameplay/weapons';
 import type { WeaponDefinition } from '../gameplay/weapons';
 
@@ -10,6 +10,12 @@ export interface BulletSlot {
   vx: number;
   alive: boolean;
   pierceRemaining: number;
+}
+
+interface TargetableEnemy {
+  x: number;
+  z: number;
+  alive: boolean;
 }
 
 export class BulletManager {
@@ -34,6 +40,7 @@ export class BulletManager {
   private reloadTimer = 0;
   private reloading = false;
   private reloadSpeedMultiplier = 1;
+  private assistStrength = 0;
   public poisonStacks = 0;
 
   constructor() {
@@ -73,9 +80,10 @@ export class BulletManager {
   public update(
     delta: number,
     playerPosition: THREE.Vector3,
-    onShotFired: () => void
+    onShotFired: () => void,
+    enemies: readonly TargetableEnemy[]
   ): void {
-    this.handleFiring(delta, playerPosition, onShotFired);
+    this.handleFiring(delta, playerPosition, onShotFired, enemies);
     this.moveAndDespawn(delta);
     this.syncInstances();
   }
@@ -83,7 +91,8 @@ export class BulletManager {
   private handleFiring(
     delta: number,
     playerPosition: THREE.Vector3,
-    onShotFired: () => void
+    onShotFired: () => void,
+    enemies: readonly TargetableEnemy[]
   ): void {
     if (this.reloading) {
       this.reloadTimer -= delta;
@@ -97,7 +106,7 @@ export class BulletManager {
       this.burstTimer -= delta;
       if (this.burstTimer <= 0) {
         this.burstTimer += BULLET.BURST_INTERVAL;
-        this.firePelletVolley(playerPosition);
+        this.firePelletVolley(playerPosition, enemies);
         onShotFired();
         this.burstShotsRemaining -= 1;
       }
@@ -113,13 +122,13 @@ export class BulletManager {
     }
 
     this.fireCooldown += 1 / this.fireRate;
-    this.firePelletVolley(playerPosition);
+    this.firePelletVolley(playerPosition, enemies);
     onShotFired();
     this.burstShotsRemaining = Math.min(this.extraBurstShots, this.currentAmmo);
     this.burstTimer = BULLET.BURST_INTERVAL;
   }
 
-  private firePelletVolley(playerPosition: THREE.Vector3): void {
+  private firePelletVolley(playerPosition: THREE.Vector3, enemies: readonly TargetableEnemy[]): void {
     const pelletCount = this.weapon.pelletCount;
     const spread = this.weapon.spread;
 
@@ -136,7 +145,7 @@ export class BulletManager {
       slot.x = playerPosition.x;
       slot.y = BULLET.SPAWN_HEIGHT;
       slot.z = playerPosition.z;
-      slot.vx = vx;
+      slot.vx = this.applyAimAssist(vx, playerPosition, enemies);
       slot.pierceRemaining = this.pierceCount;
     }
 
@@ -144,6 +153,36 @@ export class BulletManager {
     if (this.currentAmmo <= 0) {
       this.startReload();
     }
+  }
+
+  private applyAimAssist(
+    vx: number,
+    playerPosition: THREE.Vector3,
+    enemies: readonly TargetableEnemy[]
+  ): number {
+    if (this.assistStrength <= 0) return vx;
+
+    let bestDiff = 0;
+    let bestT = 0;
+    let bestAbsDiff = Infinity;
+
+    for (const enemy of enemies) {
+      if (!enemy.alive) continue;
+      const t = (playerPosition.z - enemy.z) / this.bulletSpeed;
+      if (t <= 0) continue;
+
+      const predictedX = playerPosition.x + vx * t;
+      const diff = enemy.x - predictedX;
+      const absDiff = Math.abs(diff);
+      if (absDiff < AIM_ASSIST.MAGNET_RADIUS && absDiff < bestAbsDiff) {
+        bestAbsDiff = absDiff;
+        bestDiff = diff;
+        bestT = t;
+      }
+    }
+
+    if (bestT <= 0) return vx;
+    return vx + this.assistStrength * (bestDiff / bestT);
   }
 
   private startReload(): void {
@@ -224,12 +263,19 @@ export class BulletManager {
     this.currentAmmo = Math.min(this.currentAmmo + amount, this.magazineCapacity);
   }
 
-  /** Бафф-карточка "Быстрая перезарядка" (только бесконечка): multiplier < 1 ускоряет релоад. */
   public increaseReloadSpeed(multiplier: number): void {
     this.reloadSpeedMultiplier = Math.max(
       this.reloadSpeedMultiplier * multiplier,
       BULLET_LIMITS.MIN_RELOAD_MULTIPLIER
     );
+  }
+
+  public setAssistStrength(value: number): void {
+    this.assistStrength = value;
+  }
+
+  public increaseAssist(amount: number): void {
+    this.assistStrength = Math.min(this.assistStrength + amount, AIM_ASSIST.ENDLESS_MAX);
   }
 
   private get fireRate(): number {
@@ -295,16 +341,12 @@ export class BulletManager {
     this.poisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
+    this.assistStrength = 0;
     this.currentAmmo = this.magazineCapacity;
     this.reloading = false;
     this.reloadTimer = 0;
   }
 
-  /**
-   * Сбрасывает только накопленные бонусы (баффы левел-апа, тихие сюжетные баффы),
-   * не трогая выбранное в лагере оружие — используется для "свежего старта" забега
-   * в бесконечном режиме и для возврата стрельбы к базовым статам оружия.
-   */
   public resetRunBonuses(): void {
     for (const slot of this.slots) {
       slot.alive = false;
@@ -322,6 +364,7 @@ export class BulletManager {
     this.poisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
+    this.assistStrength = 0;
     this.currentAmmo = this.magazineCapacity;
     this.reloading = false;
     this.reloadTimer = 0;

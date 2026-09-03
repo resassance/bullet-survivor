@@ -83,8 +83,6 @@ export class CampScreen {
     }
 
     if (id === 'story') {
-      
-      
       if (this.storyCompleted) {
         this.panelTitle.textContent = findCampStation('story').label;
         this.panelBody.innerHTML = '';
@@ -97,7 +95,6 @@ export class CampScreen {
     }
 
     if (id === 'endless') {
-      
       if (!this.storyCompleted) {
         this.panelTitle.textContent = findCampStation('endless').label;
         this.panelBody.innerHTML = '';
