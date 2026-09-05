@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LIGHTNING, WIND_SLASH, GRENADE, ARENA, ENEMY } from '../utils/constants';
 import type { SpecialWeaponId } from '../gameplay/specialWeapons';
-import type { EnemyManager } from './EnemyManager';
+import type { EnemyManager, EnemyTier } from './EnemyManager';
 
 interface ProjectileSlot {
   x: number;
@@ -18,6 +18,8 @@ export class SpecialWeaponManager {
 
   private equipped: SpecialWeaponId | null = null;
   private cooldownTimer = 0;
+  private activeTimer = 0;
+  private activeDuration = 0;
 
   private lightningGroup: THREE.Group;
   private lightningSegments: THREE.Mesh[] = [];
@@ -84,13 +86,31 @@ export class SpecialWeaponManager {
     }
   }
 
-  public equip(id: SpecialWeaponId | null): void {
+  public activate(id: SpecialWeaponId, durationSeconds: number): void {
     this.equipped = id;
+    this.cooldownTimer = 0;
+    this.activeTimer = durationSeconds;
+    this.activeDuration = durationSeconds;
+  }
+
+  public deactivate(): void {
+    this.equipped = null;
+    this.activeTimer = 0;
+    this.activeDuration = 0;
     this.cooldownTimer = 0;
   }
 
-  public get equippedId(): SpecialWeaponId | null {
+  public get isActive(): boolean {
+    return this.equipped !== null;
+  }
+
+  public get activeId(): SpecialWeaponId | null {
     return this.equipped;
+  }
+
+  public get activeRatio(): number {
+    if (!this.equipped || this.activeDuration <= 0) return 0;
+    return Math.max(0, Math.min(1, this.activeTimer / this.activeDuration));
   }
 
   public get cooldownRatio(): number {
@@ -103,7 +123,7 @@ export class SpecialWeaponManager {
     delta: number,
     playerPosition: THREE.Vector3,
     enemyManager: EnemyManager,
-    onKill: (x: number, y: number, z: number) => void,
+    onKill: (x: number, y: number, z: number, tier: EnemyTier) => void,
     onExplode: (x: number, y: number, z: number) => void
   ): void {
     this.updateLightningVisual(delta);
@@ -111,6 +131,12 @@ export class SpecialWeaponManager {
     this.updateGrenades(delta, enemyManager, onKill, onExplode);
 
     if (!this.equipped) return;
+
+    this.activeTimer -= delta;
+    if (this.activeTimer <= 0) {
+      this.deactivate();
+      return;
+    }
 
     this.cooldownTimer -= delta;
     if (this.cooldownTimer > 0) return;
@@ -136,7 +162,7 @@ export class SpecialWeaponManager {
   private triggerLightning(
     playerPosition: THREE.Vector3,
     enemyManager: EnemyManager,
-    onKill: (x: number, y: number, z: number) => void
+    onKill: (x: number, y: number, z: number, tier: EnemyTier) => void
   ): void {
     const points: THREE.Vector3[] = [playerPosition.clone()];
     for (let i = 1; i <= LIGHTNING.SEGMENT_COUNT; i++) {
@@ -171,7 +197,7 @@ export class SpecialWeaponManager {
         enemy.hitFlashTimer = ENEMY.HIT_FLASH_DURATION;
         if (enemy.health <= 0) {
           enemy.alive = false;
-          onKill(enemy.x, enemy.y, enemy.z);
+          onKill(enemy.x, enemy.y, enemy.z, enemy.tier);
         }
       }
     }
@@ -210,7 +236,7 @@ export class SpecialWeaponManager {
   private updateWindSlash(
     delta: number,
     enemyManager: EnemyManager,
-    onKill: (x: number, y: number, z: number) => void
+    onKill: (x: number, y: number, z: number, tier: EnemyTier) => void
   ): void {
     const hitRadiusSq = WIND_SLASH.RADIUS * WIND_SLASH.RADIUS;
 
@@ -234,7 +260,7 @@ export class SpecialWeaponManager {
         enemy.hitFlashTimer = ENEMY.HIT_FLASH_DURATION;
         if (enemy.health <= 0) {
           enemy.alive = false;
-          onKill(enemy.x, enemy.y, enemy.z);
+          onKill(enemy.x, enemy.y, enemy.z, enemy.tier);
         }
       }
     }
@@ -266,7 +292,7 @@ export class SpecialWeaponManager {
   private updateGrenades(
     delta: number,
     enemyManager: EnemyManager,
-    onKill: (x: number, y: number, z: number) => void,
+    onKill: (x: number, y: number, z: number, tier: EnemyTier) => void,
     onExplode: (x: number, y: number, z: number) => void
   ): void {
     const radiusSq = GRENADE.EXPLOSION_RADIUS * GRENADE.EXPLOSION_RADIUS;
@@ -307,7 +333,7 @@ export class SpecialWeaponManager {
   private explodeGrenade(
     slot: ProjectileSlot,
     enemyManager: EnemyManager,
-    onKill: (x: number, y: number, z: number) => void
+    onKill: (x: number, y: number, z: number, tier: EnemyTier) => void
   ): void {
     const radiusSq = GRENADE.EXPLOSION_RADIUS * GRENADE.EXPLOSION_RADIUS;
     for (const enemy of enemyManager.slots) {
@@ -320,7 +346,7 @@ export class SpecialWeaponManager {
       enemy.hitFlashTimer = ENEMY.HIT_FLASH_DURATION;
       if (enemy.health <= 0) {
         enemy.alive = false;
-        onKill(enemy.x, enemy.y, enemy.z);
+        onKill(enemy.x, enemy.y, enemy.z, enemy.tier);
       }
     }
   }
@@ -345,6 +371,8 @@ export class SpecialWeaponManager {
   public reset(): void {
     this.equipped = null;
     this.cooldownTimer = 0;
+    this.activeTimer = 0;
+    this.activeDuration = 0;
     this.lightningVisibleTimer = 0;
     for (const segment of this.lightningSegments) {
       segment.visible = false;

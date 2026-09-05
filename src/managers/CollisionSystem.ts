@@ -1,9 +1,10 @@
 import { BulletManager } from './BulletManager';
 import { EnemyManager } from './EnemyManager';
-import { BULLET, ENEMY, POISON } from '../utils/constants';
+import type { EnemyTier } from './EnemyManager';
+import { BULLET, POISON, ENEMY } from '../utils/constants';
 
 export interface CollisionCallbacks {
-  onEnemyKilled?: (x: number, y: number, z: number) => void;
+  onEnemyKilled?: (x: number, y: number, z: number, tier: EnemyTier) => void;
 }
 
 export class CollisionSystem {
@@ -22,7 +23,6 @@ export class CollisionSystem {
   private resolveBulletsVsEnemies(
     onEnemyKilled?: CollisionCallbacks['onEnemyKilled']
   ): void {
-    const hitDistSq = (BULLET.RADIUS + ENEMY.COLLISION_RADIUS) ** 2;
     const bullets = this.bulletManager.slots;
     const enemies = this.enemyManager.slots;
     const poisonStacks = this.bulletManager.poisonStacks;
@@ -33,6 +33,7 @@ export class CollisionSystem {
       for (const enemy of enemies) {
         if (!enemy.alive) continue;
 
+        const hitDistSq = (BULLET.RADIUS + enemy.collisionRadius) ** 2;
         const dx = bullet.x - enemy.x;
         const dz = bullet.z - enemy.z;
         if (dx * dx + dz * dz > hitDistSq) continue;
@@ -51,7 +52,7 @@ export class CollisionSystem {
 
         if (enemy.health <= 0) {
           enemy.alive = false;
-          onEnemyKilled?.(enemy.x, enemy.y, enemy.z);
+          onEnemyKilled?.(enemy.x, enemy.y, enemy.z, enemy.tier);
         }
 
         if (bullet.pierceRemaining > 0) {

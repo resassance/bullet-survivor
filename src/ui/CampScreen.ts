@@ -1,6 +1,6 @@
 import { createCharacterPoseTexture } from '../utils/characterSprite';
 import { WEAPONS } from '../gameplay/weapons';
-import { SPECIAL_WEAPONS, type SpecialWeaponId } from '../gameplay/specialWeapons';
+import { SPECIAL_WEAPONS } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
 import {
   WEAPON_UNLOCK_STAGE,
@@ -14,7 +14,6 @@ import { STORY_PROGRESSION } from '../utils/constants';
 
 export interface CampScreenCallbacks {
   onWeaponSelected: (weaponId: string) => void;
-  onSpecialSelected: (specialId: SpecialWeaponId | null) => void;
   onArchiveOpen: () => void;
   onPanelClosed: () => void;
   isAudioMuted: () => boolean;
@@ -29,9 +28,7 @@ export class CampScreen {
   private infoStage: HTMLDivElement;
   private infoLoadout: HTMLDivElement;
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
-  private specialButtons: Map<string, HTMLButtonElement> = new Map();
   private selectedWeaponId = 'standard';
-  private selectedSpecialId: SpecialWeaponId | null = null;
   private currentStage = 1;
   private storyCompleted = false;
   private callbacks: CampScreenCallbacks;
@@ -114,7 +111,7 @@ export class CampScreen {
       this.renderWeaponPanel();
     } else if (id === 'special') {
       if (isSpecialStationUnlocked(this.currentStage)) {
-        this.renderSpecialPanel();
+        this.renderSpecialGallery();
       } else {
         this.renderSoonPanel(`Первое спецоружие станет доступно на ${specialStationUnlockStage()} уровне.`);
       }
@@ -160,53 +157,38 @@ export class CampScreen {
     this.panelBody.appendChild(row);
   }
 
-  private renderSpecialPanel(): void {
-    const row = document.createElement('div');
-    row.className = 'camp-weapon-row';
-    this.specialButtons.clear();
+  private renderSpecialGallery(): void {
+    const intro = document.createElement('p');
+    intro.className = 'camp-special-intro';
+    intro.textContent =
+      'Спецоружие больше не выбирается вручную: в бесконечном режиме оно достаётся случайно, когда заполняется шкала «Переполнение», а в сюжете проявляет себя в финале.';
+    this.panelBody.appendChild(intro);
 
-    const noneButton = document.createElement('button');
-    noneButton.type = 'button';
-    noneButton.className = 'camp-weapon-button';
-    noneButton.textContent = 'нет';
-    noneButton.classList.toggle('camp-weapon-button--active', this.selectedSpecialId === null);
-    noneButton.addEventListener('click', () => {
-      this.selectedSpecialId = null;
-      this.callbacks.onSpecialSelected(null);
-      this.highlightSpecial(null);
-    });
-    this.specialButtons.set('none', noneButton);
-    row.appendChild(noneButton);
+    const list = document.createElement('div');
+    list.className = 'camp-special-gallery';
 
     for (const special of SPECIAL_WEAPONS) {
       const unlocked = isSpecialUnlocked(special.id, this.currentStage);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'camp-weapon-button';
-      button.classList.toggle(
-        'camp-weapon-button--active',
-        special.id === this.selectedSpecialId
-      );
-      button.classList.toggle('camp-weapon-button--locked', !unlocked);
-      button.disabled = !unlocked;
+      const entry = document.createElement('div');
+      entry.className = 'camp-special-entry';
+      entry.classList.toggle('camp-special-entry--locked', !unlocked);
 
-      if (unlocked) {
-        button.textContent = special.name;
-        button.addEventListener('click', () => {
-          this.selectedSpecialId = special.id;
-          this.callbacks.onSpecialSelected(special.id);
-          this.highlightSpecial(special.id);
-        });
-      } else {
-        const unlockStage = SPECIAL_UNLOCK_STAGE[special.id];
-        button.innerHTML = `${special.name}<span class="camp-lock-hint">открыто на ${unlockStage} ур.</span>`;
-      }
+      const name = document.createElement('div');
+      name.className = 'camp-special-name';
+      name.textContent = unlocked
+        ? special.name
+        : `${special.name} · открыто на ${SPECIAL_UNLOCK_STAGE[special.id]} ур.`;
+      entry.appendChild(name);
 
-      this.specialButtons.set(special.id, button);
-      row.appendChild(button);
+      const desc = document.createElement('div');
+      desc.className = 'camp-special-desc';
+      desc.textContent = special.description;
+      entry.appendChild(desc);
+
+      list.appendChild(entry);
     }
 
-    this.panelBody.appendChild(row);
+    this.panelBody.appendChild(list);
   }
 
   private renderSettingsPanel(): void {
@@ -247,10 +229,7 @@ export class CampScreen {
       ? `ИСТОРИЯ ЗАВЕРШЕНА · ${STORY_PROGRESSION.TOTAL_STAGES}/${STORY_PROGRESSION.TOTAL_STAGES}`
       : `УРОВЕНЬ ${this.currentStage}/${STORY_PROGRESSION.TOTAL_STAGES}`;
     const weaponName = WEAPONS.find((weapon) => weapon.id === this.selectedWeaponId)?.name ?? '';
-    const specialName = this.selectedSpecialId
-      ? SPECIAL_WEAPONS.find((special) => special.id === this.selectedSpecialId)?.name
-      : null;
-    this.infoLoadout.textContent = specialName ? `${weaponName} · ${specialName}` : weaponName;
+    this.infoLoadout.textContent = weaponName;
   }
 
   private highlightWeapon(weaponId: string): void {
@@ -260,26 +239,13 @@ export class CampScreen {
     this.updateInfoRow();
   }
 
-  private highlightSpecial(specialId: SpecialWeaponId | null): void {
-    for (const [id, button] of this.specialButtons) {
-      button.classList.toggle('camp-weapon-button--active', id === (specialId ?? 'none'));
-    }
-    this.updateInfoRow();
-  }
-
   public closePanel(): void {
     this.panel.classList.remove('camp-panel--visible');
     this.callbacks.onPanelClosed();
   }
 
-  public show(
-    selectedWeaponId: string,
-    selectedSpecialId: SpecialWeaponId | null,
-    currentStage: number,
-    storyCompleted = false
-  ): void {
+  public show(selectedWeaponId: string, currentStage: number, storyCompleted = false): void {
     this.selectedWeaponId = selectedWeaponId;
-    this.selectedSpecialId = selectedSpecialId;
     this.currentStage = currentStage;
     this.storyCompleted = storyCompleted;
     this.updateInfoRow();
