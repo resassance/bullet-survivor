@@ -34,12 +34,15 @@ import { DebugPanel } from '../ui/DebugPanel';
 import { CampScreen } from '../ui/CampScreen';
 import { ArchiveScreen } from '../ui/ArchiveScreen';
 import { PauseButton } from '../ui/PauseButton';
+import { PauseMenu } from '../ui/PauseMenu';
+import { OverflowBar } from '../ui/OverflowBar';
 import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
 import { AudioManager } from '../managers/AudioManager';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { WEAPONS } from '../gameplay/weapons';
+import { SPECIAL_WEAPONS, type SpecialWeaponId } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
 import { isSpecialStationUnlocked, isWeaponUnlocked } from '../gameplay/progression';
 import {
@@ -49,6 +52,7 @@ import {
 } from '../gameplay/dialogueLines';
 import { pickNovelScene } from '../gameplay/novelScenes';
 import { CreditsScreen } from '../ui/CreditsScreen';
+import type { EnemyTier } from '../managers/EnemyManager';
 import {
   ARENA,
   PLAYER,
@@ -61,6 +65,9 @@ import {
   STORY_PROGRESSION,
   SKILL_TUNING,
   AIM_ASSIST,
+  ENEMY_TIER,
+  OVERFLOW,
+  VOID_FINALE,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -106,6 +113,8 @@ export class Game {
   private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
+  private pauseMenu: PauseMenu;
+  private overflowBar: OverflowBar;
   private clock: THREE.Clock;
   private container: HTMLElement;
   private isGameOver = false;
@@ -118,6 +127,11 @@ export class Game {
   private storyFireRateMultiplier = 1;
   private explosiveChance = 0;
   private endlessBestWave = 0;
+  private overflowCharge = 0;
+  private endlessEliteSpawnedThisWave = false;
+  private endlessBossSpawnedThisWave = false;
+  private voidFinaleActive = false;
+  private voidCycleIndex = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     const container = canvas.parentElement;
@@ -194,7 +208,6 @@ export class Game {
     });
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
-      onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
       onArchiveOpen: () => this.openArchive(),
       onPanelClosed: () => this.returnToCampOverview(),
       isAudioMuted: () => this.audioManager.isMuted(),
@@ -204,10 +217,23 @@ export class Game {
       },
     });
     this.archiveScreen = new ArchiveScreen(container, () => this.closeArchive());
-    this.pauseButton = new PauseButton(container, () => this.openCampMidStage());
+    this.pauseButton = new PauseButton(container, () => this.openPauseMenu());
+    this.pauseMenu = new PauseMenu(
+      container,
+      () => this.resumeFromPauseMenu(),
+      () => this.returnToCampFromPauseMenu()
+    );
+    this.overflowBar = new OverflowBar(container);
+    this.overflowBar.setVisible(false);
     new DebugPanel(container, {
       onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
-      onSpecialSelected: (specialId) => this.specialWeaponManager.equip(specialId),
+      onSpecialSelected: (specialId) => {
+        if (specialId) {
+          this.specialWeaponManager.activate(specialId, 9999);
+        } else {
+          this.specialWeaponManager.deactivate();
+        }
+      },
       onSkipStage: () => this.debugSkipStage(),
     });
 
@@ -296,7 +322,8 @@ export class Game {
       delta,
       this.player.position,
       () => this.player.triggerShot(),
-      this.enemyManager.slots
+      this.enemyManager.slots,
+      this.specialWeaponManager.isActive
     );
     this.ammoIndicator.update(
       this.bulletManager.ammo,
@@ -305,14 +332,14 @@ export class Game {
     );
     this.weaponIndicator.update(
       this.bulletManager.weaponName,
-      this.specialWeaponSummaryName(),
+      this.specialWeaponName(this.specialWeaponManager.activeId),
       this.specialWeaponManager.cooldownRatio
     );
 
     this.enemyManager.update(
       delta,
       this.cameraManager.camera,
-      (x, y, z) => this.killEnemy(x, y, z),
+      (x, y, z, tier) => this.killEnemy(x, y, z, tier),
       () => this.handlePlayerHit()
     );
 
@@ -320,13 +347,17 @@ export class Game {
       delta,
       this.player.position,
       this.enemyManager,
-      (x, y, z) => this.killEnemy(x, y, z),
+      (x, y, z, tier) => this.killEnemy(x, y, z, tier),
       (x, y, z) => this.particleManager.burst(x, y, z)
     );
 
     const spawnCount = this.activeStageManager.update(delta, this.enemyManager.aliveCount);
     if (spawnCount > 0) {
-      this.enemyManager.spawnBatch(spawnCount);
+      if (this.mode === 'endless') {
+        this.enemyManager.spawnBatch(spawnCount, this.planEndlessTiers(spawnCount));
+      } else {
+        this.enemyManager.spawnBatch(spawnCount);
+      }
     }
     this.stageIndicator.update(
       this.activeStageManager.currentStage,
@@ -345,10 +376,17 @@ export class Game {
         this.bulletManager.slots,
         (modifierIndex) => this.applyCrateModifier(modifierIndex)
       );
+      this.overflowBar.setActiveLabel(
+        this.specialWeaponManager.isActive
+          ? this.specialWeaponName(this.specialWeaponManager.activeId)
+          : null
+      );
+    } else {
+      this.updateVoidFinale();
     }
 
     this.collisionSystem.update({
-      onEnemyKilled: (x, y, z) => this.killEnemy(x, y, z),
+      onEnemyKilled: (x, y, z, tier) => this.killEnemy(x, y, z, tier),
     });
 
     if (this.mode === 'endless') {
@@ -365,12 +403,49 @@ export class Game {
     return this.mode === 'endless' ? this.endlessStageManager : this.stageManager;
   }
 
-  private specialWeaponSummaryName(): string | null {
-    const id = this.specialWeaponManager.equippedId;
+  private specialWeaponName(id: SpecialWeaponId | null): string | null {
     if (!id) return null;
-    if (id === 'lightning') return 'Молния';
-    if (id === 'windSlash') return 'Ветер';
-    return 'Бомбы';
+    return SPECIAL_WEAPONS.find((special) => special.id === id)?.name ?? null;
+  }
+
+  private planEndlessTiers(count: number): EnemyTier[] {
+    const stage = this.endlessStageManager.currentStage;
+    const tiers: EnemyTier[] = new Array(count).fill('normal');
+    const isBossWave = stage % ENEMY_TIER.BOSS_WAVE_INTERVAL === 0;
+    const isEliteWave = !isBossWave && stage % ENEMY_TIER.ELITE_WAVE_INTERVAL === 0;
+
+    if (isBossWave && !this.endlessBossSpawnedThisWave) {
+      tiers[0] = 'boss';
+      this.endlessBossSpawnedThisWave = true;
+    } else if (isEliteWave && !this.endlessEliteSpawnedThisWave) {
+      tiers[0] = 'elite';
+      this.endlessEliteSpawnedThisWave = true;
+    }
+
+    return tiers;
+  }
+
+  private updateVoidFinale(): void {
+    if (this.mode !== 'story') return;
+    if (this.stageManager.currentStage !== STORY_PROGRESSION.TOTAL_STAGES) return;
+
+    if (!this.voidFinaleActive) {
+      if (this.stageManager.spawnedCount >= this.stageManager.totalCount / 2) {
+        this.voidFinaleActive = true;
+        this.voidCycleIndex = 0;
+        this.subtitleBar.show({ speaker: 'ВОЙД', text: 'Наступает...', color: '#ff2d78' });
+        this.specialWeaponManager.activate(SPECIAL_WEAPONS[0].id, VOID_FINALE.CYCLE_DURATION);
+      }
+      return;
+    }
+
+    if (!this.specialWeaponManager.isActive) {
+      this.voidCycleIndex = (this.voidCycleIndex + 1) % SPECIAL_WEAPONS.length;
+      this.specialWeaponManager.activate(
+        SPECIAL_WEAPONS[this.voidCycleIndex].id,
+        VOID_FINALE.CYCLE_DURATION
+      );
+    }
   }
 
   private updateSubtitleTimer(delta: number): void {
@@ -381,9 +456,10 @@ export class Game {
     }
   }
 
-  private killEnemy(x: number, y: number, z: number, fromExplosion = false): void {
+  private killEnemy(x: number, y: number, z: number, tier: EnemyTier, fromExplosion = false): void {
     if (this.mode === 'endless') {
       this.gemManager.spawn(x, z);
+      this.addOverflowCharge(tier);
     }
     this.particleManager.burst(x, y, z);
 
@@ -393,10 +469,36 @@ export class Game {
       this.explosiveChance > 0 &&
       Math.random() < this.explosiveChance
     ) {
-      this.enemyManager.damageInRadius(x, z, SKILL_TUNING.EXPLOSION_RADIUS, (ex, ey, ez) =>
-        this.killEnemy(ex, ey, ez, true)
+      this.enemyManager.damageInRadius(x, z, SKILL_TUNING.EXPLOSION_RADIUS, (ex, ey, ez, exTier) =>
+        this.killEnemy(ex, ey, ez, exTier, true)
       );
     }
+  }
+
+  private addOverflowCharge(tier: EnemyTier): void {
+    if (this.specialWeaponManager.isActive) return;
+
+    const amount =
+      tier === 'boss'
+        ? OVERFLOW.BOSS_KILL
+        : tier === 'elite'
+          ? OVERFLOW.ELITE_KILL
+          : OVERFLOW.NORMAL_KILL;
+
+    this.overflowCharge = Math.min(OVERFLOW.MAX, this.overflowCharge + amount);
+    this.overflowBar.update(this.overflowCharge, OVERFLOW.MAX);
+
+    if (this.overflowCharge >= OVERFLOW.MAX) {
+      this.triggerRandomSpecial();
+    }
+  }
+
+  private triggerRandomSpecial(): void {
+    const pick = SPECIAL_WEAPONS[Math.floor(Math.random() * SPECIAL_WEAPONS.length)];
+    this.specialWeaponManager.activate(pick.id, OVERFLOW.ACTIVE_DURATION);
+    this.overflowCharge = 0;
+    this.overflowBar.update(0, OVERFLOW.MAX);
+    this.overflowBar.setActiveLabel(pick.name);
   }
 
   private handleGemCollected(value: number): void {
@@ -530,6 +632,8 @@ export class Game {
   private handleStageCleared(): void {
     if (this.mode === 'endless') {
       this.endlessStageManager.advanceStage();
+      this.endlessEliteSpawnedThisWave = false;
+      this.endlessBossSpawnedThisWave = false;
       return;
     }
 
@@ -603,6 +707,7 @@ export class Game {
     this.campScreen.hide();
     this.exitCampWorld();
     this.mode = 'story';
+    this.specialWeaponManager.deactivate();
     this.syncStoryAssist();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
@@ -624,7 +729,11 @@ export class Game {
     this.crateManager.reset();
     this.gemManager.reset();
     this.particleManager.reset();
+    this.specialWeaponManager.deactivate();
     this.explosiveChance = 0;
+    this.overflowCharge = 0;
+    this.endlessEliteSpawnedThisWave = false;
+    this.endlessBossSpawnedThisWave = false;
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.setVisible(true);
@@ -636,6 +745,9 @@ export class Game {
       this.endlessStageManager.totalCount,
       'ВОЛНА'
     );
+    this.overflowBar.setVisible(true);
+    this.overflowBar.update(0, OVERFLOW.MAX);
+    this.overflowBar.setActiveLabel(null);
 
     this.isPaused = false;
   }
@@ -646,6 +758,9 @@ export class Game {
     this.mode = 'story';
 
     this.expBar.setVisible(false);
+    this.overflowBar.setVisible(false);
+    this.overflowBar.setActiveLabel(null);
+    this.specialWeaponManager.deactivate();
     this.enemyManager.reset();
     this.crateManager.reset();
     this.gemManager.reset();
@@ -671,6 +786,21 @@ export class Game {
     this.returnToCampHub();
   }
 
+  private openPauseMenu(): void {
+    this.isPaused = true;
+    this.pauseMenu.show();
+  }
+
+  private resumeFromPauseMenu(): void {
+    this.pauseMenu.hide();
+    this.isPaused = false;
+  }
+
+  private returnToCampFromPauseMenu(): void {
+    this.pauseMenu.hide();
+    this.openCampMidStage();
+  }
+
   private openCampMidStage(): void {
     this.isPaused = true;
     const gateId: CampStationId = this.mode === 'endless' ? 'endless' : 'story';
@@ -693,7 +823,6 @@ export class Game {
 
     this.campScreen.show(
       this.bulletManager.weaponId,
-      this.specialWeaponManager.equippedId,
       this.stageManager.currentStage,
       this.storyCompleted
     );
@@ -778,7 +907,6 @@ export class Game {
     if (this.campReturnConfig) {
       this.campScreen.show(
         this.bulletManager.weaponId,
-        this.specialWeaponManager.equippedId,
         this.stageManager.currentStage,
         this.storyCompleted
       );
@@ -797,6 +925,11 @@ export class Game {
     this.storyFireRateMultiplier = 1;
     this.explosiveChance = 0;
     this.endlessBestWave = 0;
+    this.overflowCharge = 0;
+    this.endlessEliteSpawnedThisWave = false;
+    this.endlessBossSpawnedThisWave = false;
+    this.voidFinaleActive = false;
+    this.voidCycleIndex = 0;
 
     this.healthManager.reset();
     this.levelSystem.reset();
@@ -806,6 +939,8 @@ export class Game {
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
     this.expBar.setVisible(false);
+    this.overflowBar.setVisible(false);
+    this.overflowBar.setActiveLabel(null);
     this.stageIndicator.update(
       this.stageManager.currentStage,
       this.stageManager.spawnedCount,
@@ -826,6 +961,7 @@ export class Game {
     this.levelUpOverlay.hide();
     this.gameOverScreen.hide();
     this.creditsScreen.hide();
+    this.pauseMenu.hide();
     this.isGameOver = false;
 
     this.isPaused = true;

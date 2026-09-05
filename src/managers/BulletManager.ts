@@ -81,9 +81,12 @@ export class BulletManager {
     delta: number,
     playerPosition: THREE.Vector3,
     onShotFired: () => void,
-    enemies: readonly TargetableEnemy[]
+    enemies: readonly TargetableEnemy[],
+    suppressFiring = false
   ): void {
-    this.handleFiring(delta, playerPosition, onShotFired, enemies);
+    if (!suppressFiring) {
+      this.handleFiring(delta, playerPosition, onShotFired, enemies);
+    }
     this.moveAndDespawn(delta);
     this.syncInstances();
   }

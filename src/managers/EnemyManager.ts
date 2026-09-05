@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { ENEMY, ARENA } from '../utils/constants';
+import { ENEMY, ARENA, ENEMY_TIER } from '../utils/constants';
 import { createSilhouettePlaceholder } from '../utils/placeholderTexture';
+
+export type EnemyTier = 'normal' | 'elite' | 'boss';
 
 export interface EnemySlot {
   x: number;
@@ -18,6 +20,10 @@ export interface EnemySlot {
   poisonTickTimer: number;
   poisonTickInterval: number;
   hitFlashTimer: number;
+  tier: EnemyTier;
+  collisionRadius: number;
+  renderScale: number;
+  color: THREE.Color;
 }
 
 export class EnemyManager {
@@ -42,6 +48,7 @@ export class EnemyManager {
       transparent: true,
       alphaTest: 0.1,
       side: THREE.DoubleSide,
+      vertexColors: true,
     });
 
     this.mesh = new THREE.InstancedMesh(geometry, material, ENEMY.POOL_SIZE);
@@ -66,6 +73,10 @@ export class EnemyManager {
         poisonTickTimer: 0,
         poisonTickInterval: 0,
         hitFlashTimer: 0,
+        tier: 'normal',
+        collisionRadius: ENEMY.COLLISION_RADIUS,
+        renderScale: 1,
+        color: new THREE.Color(0xffffff),
       });
     }
   }
@@ -73,7 +84,7 @@ export class EnemyManager {
   public update(
     delta: number,
     camera: THREE.Camera,
-    onPoisonKill: (x: number, y: number, z: number) => void,
+    onPoisonKill: (x: number, y: number, z: number, tier: EnemyTier) => void,
     onBreach: () => void
   ): void {
     this.elapsedTime += delta;
@@ -83,9 +94,9 @@ export class EnemyManager {
     this.syncInstances(camera);
   }
 
-  public spawnBatch(count: number): void {
+  public spawnBatch(count: number, tiers?: readonly EnemyTier[]): void {
     for (let i = 0; i < count; i++) {
-      this.spawnEnemy();
+      this.spawnEnemy(tiers?.[i] ?? 'normal');
     }
   }
 
@@ -106,7 +117,7 @@ export class EnemyManager {
 
   private processPoison(
     delta: number,
-    onPoisonKill: (x: number, y: number, z: number) => void
+    onPoisonKill: (x: number, y: number, z: number, tier: EnemyTier) => void
   ): void {
     for (const slot of this.slots) {
       if (!slot.alive || slot.poisonTicksRemaining <= 0) continue;
@@ -120,7 +131,7 @@ export class EnemyManager {
 
       if (slot.health <= 0) {
         slot.alive = false;
-        onPoisonKill(slot.x, slot.y, slot.z);
+        onPoisonKill(slot.x, slot.y, slot.z, slot.tier);
       }
     }
   }
@@ -133,21 +144,46 @@ export class EnemyManager {
     }
   }
 
-  private spawnEnemy(): void {
+  private spawnEnemy(tier: EnemyTier): void {
     const slot = this.findFreeSlot();
     if (!slot) return;
 
-    slot.alive = true;
-    slot.health = Math.min(
+    const baseHealth = Math.min(
       ENEMY.HEALTH_BASE + ENEMY.HEALTH_GROWTH_PER_SECOND * this.elapsedTime,
       ENEMY.HEALTH_CAP
     );
+
+    slot.alive = true;
+    slot.tier = tier;
+
+    if (tier === 'boss') {
+      slot.health = baseHealth * ENEMY_TIER.BOSS_HEALTH_MULTIPLIER;
+      slot.renderScale = ENEMY_TIER.BOSS_SCALE;
+      slot.collisionRadius = ENEMY.COLLISION_RADIUS * ENEMY_TIER.BOSS_SCALE;
+      slot.color.setHex(ENEMY_TIER.BOSS_COLOR);
+    } else if (tier === 'elite') {
+      slot.health = baseHealth * ENEMY_TIER.ELITE_HEALTH_MULTIPLIER;
+      slot.renderScale = ENEMY_TIER.ELITE_SCALE;
+      slot.collisionRadius = ENEMY.COLLISION_RADIUS * ENEMY_TIER.ELITE_SCALE;
+      slot.color.setHex(ENEMY_TIER.ELITE_COLOR);
+    } else {
+      slot.health = baseHealth;
+      slot.renderScale = 1;
+      slot.collisionRadius = ENEMY.COLLISION_RADIUS;
+      slot.color.setHex(0xffffff);
+    }
+
     slot.baseX = THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_X_SPREAD);
     slot.x = slot.baseX;
     slot.y = 0;
     slot.z = ARENA.ENEMY_SPAWN_Z + THREE.MathUtils.randFloatSpread(ENEMY.SPAWN_Z_JITTER);
 
-    slot.speed = ENEMY.SPEED * (1 + THREE.MathUtils.randFloatSpread(ENEMY.SPEED_VARIANCE));
+    let speedMultiplier = 1;
+    if (tier === 'boss') speedMultiplier = ENEMY_TIER.BOSS_SPEED_MULTIPLIER;
+    else if (tier === 'elite') speedMultiplier = ENEMY_TIER.ELITE_SPEED_MULTIPLIER;
+
+    slot.speed =
+      ENEMY.SPEED * speedMultiplier * (1 + THREE.MathUtils.randFloatSpread(ENEMY.SPEED_VARIANCE));
     slot.wobblePhase = Math.random() * Math.PI * 2;
     slot.wobbleFrequency = THREE.MathUtils.randFloat(
       ENEMY.WOBBLE_FREQUENCY_MIN,
@@ -200,7 +236,7 @@ export class EnemyManager {
     x: number,
     z: number,
     radius: number,
-    onKilled: (x: number, y: number, z: number) => void
+    onKilled: (x: number, y: number, z: number, tier: EnemyTier) => void
   ): void {
     const radiusSq = radius * radius;
     for (const slot of this.slots) {
@@ -209,7 +245,7 @@ export class EnemyManager {
       const dz = slot.z - z;
       if (dx * dx + dz * dz <= radiusSq) {
         slot.alive = false;
-        onKilled(slot.x, slot.y, slot.z);
+        onKilled(slot.x, slot.y, slot.z, slot.tier);
       }
     }
   }
@@ -236,15 +272,19 @@ export class EnemyManager {
       this.dummy.rotation.set(0, Math.atan2(dx, dz), 0);
 
       const flashRatio = slot.hitFlashTimer / ENEMY.HIT_FLASH_DURATION;
-      const scale = 1 + flashRatio * ENEMY.HIT_FLASH_SCALE_BOOST;
+      const scale = slot.renderScale * (1 + flashRatio * ENEMY.HIT_FLASH_SCALE_BOOST);
       this.dummy.scale.setScalar(scale);
 
       this.dummy.updateMatrix();
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);
+      this.mesh.setColorAt(renderIndex, slot.color);
       renderIndex++;
     }
     this.mesh.count = renderIndex;
     this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) {
+      this.mesh.instanceColor.needsUpdate = true;
+    }
   }
 }
