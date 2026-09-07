@@ -36,6 +36,12 @@ export class HealthManager {
     return true;
   }
 
+  public instaKill(): void {
+    this.hp = 0;
+    this.isDead = true;
+    this.invulnerabilityTimer = PLAYER.INVULNERABILITY_DURATION;
+  }
+
   public increaseMaxHp(amount: number): void {
     this.maxHp += amount;
     this.hp = Math.min(this.maxHp, this.hp + amount);

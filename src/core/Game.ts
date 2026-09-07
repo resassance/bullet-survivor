@@ -10,6 +10,7 @@ import { Player } from '../entities/Player';
 import { CoverProp } from '../entities/CoverProp';
 import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
+import { BossAttackManager } from '../managers/BossAttackManager';
 import { SupplyCrateManager } from '../managers/SupplyCrateManager';
 import { GemManager } from '../managers/GemManager';
 import { ParticleManager } from '../managers/ParticleManager';
@@ -68,6 +69,7 @@ import {
   ENEMY_TIER,
   OVERFLOW,
   VOID_FINALE,
+  BOSS_ATTACK,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -82,6 +84,7 @@ export class Game {
   private coverProp: CoverProp;
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
+  private bossAttackManager: BossAttackManager;
   private crateManager: SupplyCrateManager;
   private gemManager: GemManager;
   private particleManager: ParticleManager;
@@ -130,6 +133,7 @@ export class Game {
   private overflowCharge = 0;
   private endlessEliteSpawnedThisWave = false;
   private endlessBossSpawnedThisWave = false;
+  private storyBossSpawnedThisStage = false;
   private voidFinaleActive = false;
   private voidCycleIndex = 0;
 
@@ -159,6 +163,7 @@ export class Game {
     this.coverProp = new CoverProp();
     this.bulletManager = new BulletManager();
     this.enemyManager = new EnemyManager();
+    this.bossAttackManager = new BossAttackManager();
     this.crateManager = new SupplyCrateManager();
     this.gemManager = new GemManager();
     this.particleManager = new ParticleManager();
@@ -268,6 +273,7 @@ export class Game {
     this.battleWorld.add(this.coverProp.group);
     this.battleWorld.add(this.bulletManager.mesh);
     this.battleWorld.add(this.enemyManager.mesh);
+    this.battleWorld.add(this.bossAttackManager.group);
     this.battleWorld.add(this.crateManager.group);
     this.battleWorld.add(this.gemManager.mesh);
     this.battleWorld.add(this.particleManager.mesh);
@@ -340,8 +346,11 @@ export class Game {
       delta,
       this.cameraManager.camera,
       (x, y, z, tier) => this.killEnemy(x, y, z, tier),
-      () => this.handlePlayerHit()
+      (tier) => this.handleBreach(tier),
+      (x) => this.bossAttackManager.trigger(x)
     );
+
+    this.bossAttackManager.update(delta, (lockedX) => this.resolveBossBeam(lockedX));
 
     this.specialWeaponManager.update(
       delta,
@@ -353,11 +362,9 @@ export class Game {
 
     const spawnCount = this.activeStageManager.update(delta, this.enemyManager.aliveCount);
     if (spawnCount > 0) {
-      if (this.mode === 'endless') {
-        this.enemyManager.spawnBatch(spawnCount, this.planEndlessTiers(spawnCount));
-      } else {
-        this.enemyManager.spawnBatch(spawnCount);
-      }
+      const tiers =
+        this.mode === 'endless' ? this.planEndlessTiers(spawnCount) : this.planStoryTiers(spawnCount);
+      this.enemyManager.spawnBatch(spawnCount, tiers);
     }
     this.stageIndicator.update(
       this.activeStageManager.currentStage,
@@ -410,16 +417,39 @@ export class Game {
 
   private planEndlessTiers(count: number): EnemyTier[] {
     const stage = this.endlessStageManager.currentStage;
+    const spawnedSoFar = this.endlessStageManager.spawnedCount;
+    const totalCount = this.endlessStageManager.totalCount;
     const tiers: EnemyTier[] = new Array(count).fill('normal');
-    const isBossWave = stage % ENEMY_TIER.BOSS_WAVE_INTERVAL === 0;
+
+    const isBossWave = stage % ENEMY_TIER.ENDLESS_BOSS_WAVE_INTERVAL === 0;
     const isEliteWave = !isBossWave && stage % ENEMY_TIER.ELITE_WAVE_INTERVAL === 0;
 
     if (isBossWave && !this.endlessBossSpawnedThisWave) {
-      tiers[0] = 'boss';
-      this.endlessBossSpawnedThisWave = true;
+      const lastIndex = totalCount - spawnedSoFar - 1;
+      if (lastIndex >= 0 && lastIndex < count) {
+        tiers[lastIndex] = 'boss';
+        this.endlessBossSpawnedThisWave = true;
+      }
     } else if (isEliteWave && !this.endlessEliteSpawnedThisWave) {
       tiers[0] = 'elite';
       this.endlessEliteSpawnedThisWave = true;
+    }
+
+    return tiers;
+  }
+
+  private planStoryTiers(count: number): EnemyTier[] {
+    const stage = this.stageManager.currentStage;
+    const spawnedSoFar = this.stageManager.spawnedCount;
+    const totalCount = this.stageManager.totalCount;
+    const tiers: EnemyTier[] = new Array(count).fill('normal');
+
+    if (stage >= ENEMY_TIER.STORY_BOSS_FROM_STAGE && !this.storyBossSpawnedThisStage) {
+      const lastIndex = totalCount - spawnedSoFar - 1;
+      if (lastIndex >= 0 && lastIndex < count) {
+        tiers[lastIndex] = 'boss';
+        this.storyBossSpawnedThisStage = true;
+      }
     }
 
     return tiers;
@@ -595,17 +625,41 @@ export class Game {
     }
   }
 
-  private handlePlayerHit(): void {
-    const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
-    if (!damageApplied) return;
-
+  private applyPlayerDamageFeedback(shakeMultiplier = 1): void {
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.hitFlash.trigger();
-    this.cameraManager.triggerShake(CAMERA_SHAKE.HIT_MAGNITUDE, CAMERA_SHAKE.HIT_DURATION);
+    this.cameraManager.triggerShake(
+      CAMERA_SHAKE.HIT_MAGNITUDE * shakeMultiplier,
+      CAMERA_SHAKE.HIT_DURATION
+    );
 
     if (this.healthManager.dead) {
       this.handleGameOver();
     }
+  }
+
+  private handlePlayerHit(): void {
+    const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
+    if (!damageApplied) return;
+    this.applyPlayerDamageFeedback();
+  }
+
+  private handleBreach(tier: EnemyTier): void {
+    if (tier === 'boss') {
+      this.healthManager.instaKill();
+      this.applyPlayerDamageFeedback(1.8);
+      return;
+    }
+    this.handlePlayerHit();
+  }
+
+  private resolveBossBeam(lockedX: number): void {
+    const dx = Math.abs(this.player.position.x - lockedX);
+    if (dx > BOSS_ATTACK.ZONE_WIDTH / 2) return;
+
+    const damageApplied = this.healthManager.takeDamage(BOSS_ATTACK.DAMAGE);
+    if (!damageApplied) return;
+    this.applyPlayerDamageFeedback(1.4);
   }
 
   private handleGameOver(): void {
@@ -658,6 +712,8 @@ export class Game {
       this.stageManager.advanceStage();
       this.autoEquipStoryWeapon();
       this.syncStoryAssist();
+      this.storyBossSpawnedThisStage = false;
+      this.bossAttackManager.reset();
       this.fadeOverlay.transition(() => {
         const dialogue = pickIntroDialogue(this.stageManager.currentStage);
         this.dialogueScreen.play(dialogue, () => {
@@ -718,6 +774,8 @@ export class Game {
     this.specialWeaponManager.deactivate();
     this.autoEquipStoryWeapon();
     this.syncStoryAssist();
+    this.storyBossSpawnedThisStage = false;
+    this.bossAttackManager.reset();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -743,6 +801,7 @@ export class Game {
     this.overflowCharge = 0;
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
+    this.bossAttackManager.reset();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.setVisible(true);
@@ -771,6 +830,7 @@ export class Game {
     this.overflowBar.setActiveLabel(null);
     this.specialWeaponManager.deactivate();
     this.enemyManager.reset();
+    this.bossAttackManager.reset();
     this.crateManager.reset();
     this.gemManager.reset();
     this.particleManager.reset();
@@ -939,6 +999,7 @@ export class Game {
     this.overflowCharge = 0;
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
+    this.storyBossSpawnedThisStage = false;
     this.voidFinaleActive = false;
     this.voidCycleIndex = 0;
 
@@ -946,6 +1007,7 @@ export class Game {
     this.levelSystem.reset();
     this.stageManager.reset();
     this.endlessStageManager.reset();
+    this.bossAttackManager.reset();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);

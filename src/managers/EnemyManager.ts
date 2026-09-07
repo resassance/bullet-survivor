@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ENEMY, ARENA, ENEMY_TIER, ENEMY_SPRITE_SHEET } from '../utils/constants';
+import { ENEMY, ARENA, ENEMY_TIER, ENEMY_SPRITE_SHEET, BOSS_ATTACK } from '../utils/constants';
 import { createSilhouetteSpriteSheet } from '../utils/placeholderTexture';
 import { tryLoadTexture } from '../utils/textureLoader';
 
@@ -26,6 +26,7 @@ export interface EnemySlot {
   renderScale: number;
   color: THREE.Color;
   animPhase: number;
+  attackTimer: number;
 }
 
 export class EnemyManager {
@@ -129,6 +130,7 @@ export class EnemyManager {
         renderScale: 1,
         color: new THREE.Color(0xffffff),
         animPhase: 0,
+        attackTimer: 0,
       });
     }
   }
@@ -137,14 +139,31 @@ export class EnemyManager {
     delta: number,
     camera: THREE.Camera,
     onPoisonKill: (x: number, y: number, z: number, tier: EnemyTier) => void,
-    onBreach: () => void
+    onBreach: (tier: EnemyTier) => void,
+    onBossAttackReady: (x: number, z: number) => void
   ): void {
     this.elapsedTime += delta;
     this.timeUniform.value = this.elapsedTime;
     this.moveEnemies(delta, onBreach);
+    this.updateBossAttacks(delta, onBossAttackReady);
     this.processPoison(delta, onPoisonKill);
     this.decayHitFlash(delta);
     this.syncInstances(camera);
+  }
+
+  private updateBossAttacks(
+    delta: number,
+    onBossAttackReady: (x: number, z: number) => void
+  ): void {
+    for (const slot of this.slots) {
+      if (!slot.alive || slot.tier !== 'boss') continue;
+
+      slot.attackTimer -= delta;
+      if (slot.attackTimer <= 0) {
+        slot.attackTimer = BOSS_ATTACK.COOLDOWN;
+        onBossAttackReady(slot.x, slot.z);
+      }
+    }
   }
 
   public spawnBatch(count: number, tiers?: readonly EnemyTier[]): void {
@@ -247,6 +266,7 @@ export class EnemyManager {
       ENEMY.WOBBLE_AMPLITUDE_MAX
     );
     slot.animPhase = Math.random() * ENEMY_SPRITE_SHEET.PHASE_RANDOM_RANGE;
+    slot.attackTimer = tier === 'boss' ? BOSS_ATTACK.INITIAL_DELAY : 0;
 
     slot.poisonDamagePerTick = 0;
     slot.poisonTicksRemaining = 0;
@@ -262,7 +282,7 @@ export class EnemyManager {
     return null;
   }
 
-  private moveEnemies(delta: number, onBreach: () => void): void {
+  private moveEnemies(delta: number, onBreach: (tier: EnemyTier) => void): void {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
 
@@ -274,8 +294,9 @@ export class EnemyManager {
       slot.x = slot.baseX + wobble;
 
       if (slot.z > ENEMY.BREACH_Z) {
+        const tier = slot.tier;
         slot.alive = false;
-        onBreach();
+        onBreach(tier);
       }
     }
   }
