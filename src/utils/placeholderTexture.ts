@@ -1,19 +1,41 @@
 import * as THREE from 'three';
 
-export function createSilhouettePlaceholder(options: {
-  glowColor: string;
-  fillColor: string;
-  label?: string;
-}): THREE.CanvasTexture {
-  const size = 256;
+export function createSilhouetteSpriteSheet(
+  options: { glowColor: string; fillColor: string },
+  cols: number,
+  rows: number
+): THREE.CanvasTexture {
+  const cellSize = 256;
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = cellSize * cols;
+  canvas.height = cellSize * rows;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.clearRect(0, 0, size, size);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      drawSilhouetteCell(ctx, col * cellSize, row * cellSize, cellSize, options, col / cols);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function drawSilhouetteCell(
+  ctx: CanvasRenderingContext2D,
+  originX: number,
+  originY: number,
+  size: number,
+  options: { glowColor: string; fillColor: string },
+  stepPhase: number
+): void {
+  const stepOffset = Math.sin(stepPhase * Math.PI * 2) * size * 0.05;
 
   ctx.save();
+  ctx.translate(originX, originY);
+  ctx.clearRect(0, 0, size, size);
+
   ctx.shadowColor = options.glowColor;
   ctx.shadowBlur = 20;
   ctx.fillStyle = options.fillColor;
@@ -26,23 +48,13 @@ export function createSilhouettePlaceholder(options: {
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(size * 0.36, size * 0.42);
-  ctx.lineTo(size * 0.64, size * 0.42);
-  ctx.lineTo(size * 0.72, size * 0.92);
-  ctx.lineTo(size * 0.28, size * 0.92);
+  ctx.moveTo(size * 0.36 + stepOffset, size * 0.42);
+  ctx.lineTo(size * 0.64 + stepOffset, size * 0.42);
+  ctx.lineTo(size * 0.72 - stepOffset, size * 0.92);
+  ctx.lineTo(size * 0.28 - stepOffset, size * 0.92);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+
   ctx.restore();
-
-  if (options.label) {
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(options.label, size / 2, size - 8);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
 }

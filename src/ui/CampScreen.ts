@@ -31,6 +31,7 @@ export class CampScreen {
   private selectedWeaponId = 'standard';
   private currentStage = 1;
   private storyCompleted = false;
+  private weaponAutoManaged = false;
   private callbacks: CampScreenCallbacks;
 
   constructor(container: HTMLElement, callbacks: CampScreenCallbacks) {
@@ -125,6 +126,14 @@ export class CampScreen {
   }
 
   private renderWeaponPanel(): void {
+    if (this.weaponAutoManaged) {
+      const intro = document.createElement('p');
+      intro.className = 'camp-special-intro';
+      intro.textContent =
+        'В сюжетном режиме оружие подбирается автоматически по мере разблокировки. Ручной выбор доступен в бесконечном режиме.';
+      this.panelBody.appendChild(intro);
+    }
+
     const row = document.createElement('div');
     row.className = 'camp-weapon-row';
     this.weaponButtons.clear();
@@ -136,15 +145,17 @@ export class CampScreen {
       button.className = 'camp-weapon-button';
       button.classList.toggle('camp-weapon-button--active', weapon.id === this.selectedWeaponId);
       button.classList.toggle('camp-weapon-button--locked', !unlocked);
-      button.disabled = !unlocked;
+      button.disabled = !unlocked || this.weaponAutoManaged;
 
       if (unlocked) {
         button.textContent = weapon.name;
-        button.addEventListener('click', () => {
-          this.selectedWeaponId = weapon.id;
-          this.callbacks.onWeaponSelected(weapon.id);
-          this.highlightWeapon(weapon.id);
-        });
+        if (!this.weaponAutoManaged) {
+          button.addEventListener('click', () => {
+            this.selectedWeaponId = weapon.id;
+            this.callbacks.onWeaponSelected(weapon.id);
+            this.highlightWeapon(weapon.id);
+          });
+        }
       } else {
         const unlockStage = WEAPON_UNLOCK_STAGE[weapon.id];
         button.innerHTML = `${weapon.name}<span class="camp-lock-hint">открыто на ${unlockStage} ур.</span>`;
@@ -244,10 +255,16 @@ export class CampScreen {
     this.callbacks.onPanelClosed();
   }
 
-  public show(selectedWeaponId: string, currentStage: number, storyCompleted = false): void {
+  public show(
+    selectedWeaponId: string,
+    currentStage: number,
+    storyCompleted = false,
+    weaponAutoManaged = false
+  ): void {
     this.selectedWeaponId = selectedWeaponId;
     this.currentStage = currentStage;
     this.storyCompleted = storyCompleted;
+    this.weaponAutoManaged = weaponAutoManaged;
     this.updateInfoRow();
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ENEMY, ARENA, ENEMY_TIER } from '../utils/constants';
-import { createSilhouettePlaceholder } from '../utils/placeholderTexture';
+import { ENEMY, ARENA, ENEMY_TIER, ENEMY_SPRITE_SHEET } from '../utils/constants';
+import { createSilhouetteSpriteSheet } from '../utils/placeholderTexture';
+import { tryLoadTexture } from '../utils/textureLoader';
 
 export type EnemyTier = 'normal' | 'elite' | 'boss';
 
@@ -24,6 +25,7 @@ export interface EnemySlot {
   collisionRadius: number;
   renderScale: number;
   color: THREE.Color;
+  animPhase: number;
 }
 
 export class EnemyManager {
@@ -32,16 +34,25 @@ export class EnemyManager {
 
   private dummy = new THREE.Object3D();
   private elapsedTime = 0;
+  private timeUniform = { value: 0 };
+  private animPhaseAttribute: THREE.InstancedBufferAttribute;
 
   constructor() {
     const geometry = new THREE.PlaneGeometry(ENEMY.WIDTH, ENEMY.HEIGHT);
     geometry.translate(0, ENEMY.HEIGHT / 2, 0);
 
-    const texture = createSilhouettePlaceholder({
-      glowColor: '#ff2d55',
-      fillColor: '#12060a',
-      label: 'ETHEREAL',
-    });
+    this.animPhaseAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(ENEMY.POOL_SIZE),
+      1
+    );
+    this.animPhaseAttribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('instanceAnimPhase', this.animPhaseAttribute);
+
+    const texture = createSilhouetteSpriteSheet(
+      { glowColor: '#ff2d55', fillColor: '#12060a' },
+      ENEMY_SPRITE_SHEET.COLS,
+      ENEMY_SPRITE_SHEET.ROWS
+    );
 
     const material = new THREE.MeshBasicMaterial({
       map: texture,
@@ -49,6 +60,46 @@ export class EnemyManager {
       alphaTest: 0.1,
       side: THREE.DoubleSide,
       vertexColors: true,
+    });
+
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.timeUniform;
+      shader.uniforms.uCols = { value: ENEMY_SPRITE_SHEET.COLS };
+      shader.uniforms.uRows = { value: ENEMY_SPRITE_SHEET.ROWS };
+      shader.uniforms.uFPS = { value: ENEMY_SPRITE_SHEET.WALK_FPS };
+      shader.uniforms.uRow = { value: ENEMY_SPRITE_SHEET.WALK_ROW };
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `
+        attribute float instanceAnimPhase;
+        uniform float uTime;
+        uniform float uCols;
+        uniform float uRows;
+        uniform float uFPS;
+        uniform float uRow;
+        #include <common>
+        `
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        `
+        #include <uv_vertex>
+        {
+          float frameIndex = floor((uTime + instanceAnimPhase) * uFPS);
+          float col = mod(frameIndex, uCols);
+          vec2 frameSize = vec2(1.0 / uCols, 1.0 / uRows);
+          vec2 frameOffset = vec2(col * frameSize.x, (uRows - 1.0 - uRow) * frameSize.y);
+          vUv = vUv * frameSize + frameOffset;
+        }
+        `
+      );
+    };
+
+    tryLoadTexture('/assets/sprites/enemy/ethereal.png', (loadedTexture) => {
+      material.map = loadedTexture;
+      material.needsUpdate = true;
     });
 
     this.mesh = new THREE.InstancedMesh(geometry, material, ENEMY.POOL_SIZE);
@@ -77,6 +128,7 @@ export class EnemyManager {
         collisionRadius: ENEMY.COLLISION_RADIUS,
         renderScale: 1,
         color: new THREE.Color(0xffffff),
+        animPhase: 0,
       });
     }
   }
@@ -88,6 +140,7 @@ export class EnemyManager {
     onBreach: () => void
   ): void {
     this.elapsedTime += delta;
+    this.timeUniform.value = this.elapsedTime;
     this.moveEnemies(delta, onBreach);
     this.processPoison(delta, onPoisonKill);
     this.decayHitFlash(delta);
@@ -193,6 +246,7 @@ export class EnemyManager {
       ENEMY.WOBBLE_AMPLITUDE_MIN,
       ENEMY.WOBBLE_AMPLITUDE_MAX
     );
+    slot.animPhase = Math.random() * ENEMY_SPRITE_SHEET.PHASE_RANDOM_RANGE;
 
     slot.poisonDamagePerTick = 0;
     slot.poisonTicksRemaining = 0;
@@ -279,10 +333,12 @@ export class EnemyManager {
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);
       this.mesh.setColorAt(renderIndex, slot.color);
+      this.animPhaseAttribute.array[renderIndex] = slot.animPhase;
       renderIndex++;
     }
     this.mesh.count = renderIndex;
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.animPhaseAttribute.needsUpdate = true;
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }

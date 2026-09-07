@@ -160,6 +160,14 @@ export const ENEMY_TIER = {
   BOSS_COLOR: 0xff2d78,
 };
 
+export const ENEMY_SPRITE_SHEET = {
+  COLS: 4,
+  ROWS: 3,
+  WALK_ROW: 0,
+  WALK_FPS: 8,
+  PHASE_RANDOM_RANGE: 10,
+};
+
 export const OVERFLOW = {
   MAX: 100,
   NORMAL_KILL: 4,

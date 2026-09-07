@@ -44,7 +44,7 @@ import { pickRandomSkills } from '../gameplay/skills';
 import { WEAPONS } from '../gameplay/weapons';
 import { SPECIAL_WEAPONS, type SpecialWeaponId } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
-import { isSpecialStationUnlocked, isWeaponUnlocked } from '../gameplay/progression';
+import { isSpecialStationUnlocked, isWeaponUnlocked, bestUnlockedWeaponId } from '../gameplay/progression';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
@@ -656,6 +656,7 @@ export class Game {
       }
 
       this.stageManager.advanceStage();
+      this.autoEquipStoryWeapon();
       this.syncStoryAssist();
       this.fadeOverlay.transition(() => {
         const dialogue = pickIntroDialogue(this.stageManager.currentStage);
@@ -680,6 +681,13 @@ export class Game {
       Math.max(0, (stage - 1) / (STORY_PROGRESSION.TOTAL_STAGES - 1))
     );
     this.bulletManager.setAssistStrength(AIM_ASSIST.STORY_MAX * (1 - progress));
+  }
+
+  private autoEquipStoryWeapon(): void {
+    const weaponId = bestUnlockedWeaponId(this.stageManager.currentStage);
+    if (weaponId !== this.bulletManager.weaponId) {
+      this.bulletManager.switchWeapon(weaponId);
+    }
   }
 
   private finishStory(): void {
@@ -708,6 +716,7 @@ export class Game {
     this.exitCampWorld();
     this.mode = 'story';
     this.specialWeaponManager.deactivate();
+    this.autoEquipStoryWeapon();
     this.syncStoryAssist();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
@@ -824,7 +833,8 @@ export class Game {
     this.campScreen.show(
       this.bulletManager.weaponId,
       this.stageManager.currentStage,
-      this.storyCompleted
+      this.storyCompleted,
+      !this.storyCompleted
     );
   }
 
@@ -908,7 +918,8 @@ export class Game {
       this.campScreen.show(
         this.bulletManager.weaponId,
         this.stageManager.currentStage,
-        this.storyCompleted
+        this.storyCompleted,
+        !this.storyCompleted
       );
     }
   }

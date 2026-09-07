@@ -1,4 +1,5 @@
 import { createPortraitCanvas } from '../utils/portraitSprite';
+import { tryLoadDomImage } from '../utils/domImageLoader';
 import {
   NOVEL_BACKGROUNDS,
   NOVEL_CHARACTERS,
@@ -50,31 +51,45 @@ export class VisualNovelScene {
     this.lineIndex = 0;
     this.onComplete = onComplete;
 
-    this.renderBackground();
-    this.renderActors();
+    this.renderBackground(scene);
+    this.renderActors(scene);
 
     this.element.classList.add('novel-scene--visible');
     this.renderCurrentLine();
   }
 
-  private renderBackground(): void {
-    if (!this.scene) return;
-    const bg = NOVEL_BACKGROUNDS[this.scene.background];
+  private renderBackground(scene: NovelScene): void {
+    const bg = NOVEL_BACKGROUNDS[scene.background];
+    this.backgroundElement.style.backgroundImage = '';
     this.backgroundElement.style.background = `linear-gradient(160deg, ${bg.fallbackGradient[0]}, ${bg.fallbackGradient[1]})`;
+
+    tryLoadDomImage(bg.imagePath, (path) => {
+      if (this.scene !== scene) return;
+      this.backgroundElement.style.background = '';
+      this.backgroundElement.style.backgroundImage = `url(${path})`;
+    });
   }
 
-  private renderActors(): void {
-    if (!this.scene) return;
+  private renderActors(scene: NovelScene): void {
     this.actorsLayer.innerHTML = '';
     this.actorElements.clear();
 
-    for (const actor of this.scene.actors) {
+    for (const actor of scene.actors) {
       const def = NOVEL_CHARACTERS[actor.characterId];
       const actorEl = document.createElement('div');
       actorEl.className = `novel-actor novel-actor--${actor.slot}`;
       actorEl.appendChild(createPortraitCanvas('a', def.color));
       this.actorsLayer.appendChild(actorEl);
       this.actorElements.set(actor.characterId, actorEl);
+
+      tryLoadDomImage(def.imagePath, (path) => {
+        if (this.scene !== scene) return;
+        actorEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.className = 'novel-actor-image';
+        img.src = path;
+        actorEl.appendChild(img);
+      });
     }
   }
 
