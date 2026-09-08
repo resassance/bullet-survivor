@@ -51,6 +51,12 @@ export class HealthManager {
     this.regenPerSecond += amountPerSecond;
   }
 
+  public healToFull(): void {
+    this.hp = this.maxHp;
+    this.isDead = false;
+    this.invulnerabilityTimer = 0;
+  }
+
   public reset(): void {
     this.maxHp = this.baseMaxHp;
     this.regenPerSecond = 0;

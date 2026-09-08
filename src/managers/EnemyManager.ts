@@ -25,7 +25,6 @@ export interface EnemySlot {
   collisionRadius: number;
   renderScale: number;
   color: THREE.Color;
-  animPhase: number;
   attackTimer: number;
 }
 
@@ -35,27 +34,23 @@ export class EnemyManager {
 
   private dummy = new THREE.Object3D();
   private elapsedTime = 0;
-  private timeUniform = { value: 0 };
-  private animPhaseAttribute: THREE.InstancedBufferAttribute;
+  private material: THREE.MeshBasicMaterial;
+  private frameOffsetY: number;
 
   constructor() {
     const geometry = new THREE.PlaneGeometry(ENEMY.WIDTH, ENEMY.HEIGHT);
     geometry.translate(0, ENEMY.HEIGHT / 2, 0);
-
-    this.animPhaseAttribute = new THREE.InstancedBufferAttribute(
-      new Float32Array(ENEMY.POOL_SIZE),
-      1
-    );
-    this.animPhaseAttribute.setUsage(THREE.DynamicDrawUsage);
-    geometry.setAttribute('instanceAnimPhase', this.animPhaseAttribute);
 
     const texture = createSilhouetteSpriteSheet(
       { glowColor: '#ff2d55', fillColor: '#12060a' },
       ENEMY_SPRITE_SHEET.COLS,
       ENEMY_SPRITE_SHEET.ROWS
     );
+    this.frameOffsetY =
+      (ENEMY_SPRITE_SHEET.ROWS - 1 - ENEMY_SPRITE_SHEET.WALK_ROW) / ENEMY_SPRITE_SHEET.ROWS;
+    this.configureSpriteSheetTexture(texture);
 
-    const material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
       alphaTest: 0.1,
@@ -63,47 +58,13 @@ export class EnemyManager {
       vertexColors: true,
     });
 
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = this.timeUniform;
-      shader.uniforms.uCols = { value: ENEMY_SPRITE_SHEET.COLS };
-      shader.uniforms.uRows = { value: ENEMY_SPRITE_SHEET.ROWS };
-      shader.uniforms.uFPS = { value: ENEMY_SPRITE_SHEET.WALK_FPS };
-      shader.uniforms.uRow = { value: ENEMY_SPRITE_SHEET.WALK_ROW };
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        `
-        attribute float instanceAnimPhase;
-        uniform float uTime;
-        uniform float uCols;
-        uniform float uRows;
-        uniform float uFPS;
-        uniform float uRow;
-        #include <common>
-        `
-      );
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <uv_vertex>',
-        `
-        #include <uv_vertex>
-        {
-          float frameIndex = floor((uTime + instanceAnimPhase) * uFPS);
-          float col = mod(frameIndex, uCols);
-          vec2 frameSize = vec2(1.0 / uCols, 1.0 / uRows);
-          vec2 frameOffset = vec2(col * frameSize.x, (uRows - 1.0 - uRow) * frameSize.y);
-          vUv = vUv * frameSize + frameOffset;
-        }
-        `
-      );
-    };
-
     tryLoadTexture('/assets/sprites/enemy/ethereal.png', (loadedTexture) => {
-      material.map = loadedTexture;
-      material.needsUpdate = true;
+      this.configureSpriteSheetTexture(loadedTexture);
+      this.material.map = loadedTexture;
+      this.material.needsUpdate = true;
     });
 
-    this.mesh = new THREE.InstancedMesh(geometry, material, ENEMY.POOL_SIZE);
+    this.mesh = new THREE.InstancedMesh(geometry, this.material, ENEMY.POOL_SIZE);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
@@ -129,10 +90,16 @@ export class EnemyManager {
         collisionRadius: ENEMY.COLLISION_RADIUS,
         renderScale: 1,
         color: new THREE.Color(0xffffff),
-        animPhase: 0,
         attackTimer: 0,
       });
     }
+  }
+
+  private configureSpriteSheetTexture(texture: THREE.Texture): void {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1 / ENEMY_SPRITE_SHEET.COLS, 1 / ENEMY_SPRITE_SHEET.ROWS);
+    texture.offset.set(0, this.frameOffsetY);
   }
 
   public update(
@@ -143,12 +110,21 @@ export class EnemyManager {
     onBossAttackReady: (x: number, z: number) => void
   ): void {
     this.elapsedTime += delta;
-    this.timeUniform.value = this.elapsedTime;
+    this.updateWalkFrame();
     this.moveEnemies(delta, onBreach);
     this.updateBossAttacks(delta, onBossAttackReady);
     this.processPoison(delta, onPoisonKill);
     this.decayHitFlash(delta);
     this.syncInstances(camera);
+  }
+
+  private updateWalkFrame(): void {
+    const frameIndex = Math.floor(this.elapsedTime * ENEMY_SPRITE_SHEET.WALK_FPS);
+    const col = frameIndex % ENEMY_SPRITE_SHEET.COLS;
+    const texture = this.material.map;
+    if (texture) {
+      texture.offset.x = col / ENEMY_SPRITE_SHEET.COLS;
+    }
   }
 
   private updateBossAttacks(
@@ -265,7 +241,6 @@ export class EnemyManager {
       ENEMY.WOBBLE_AMPLITUDE_MIN,
       ENEMY.WOBBLE_AMPLITUDE_MAX
     );
-    slot.animPhase = Math.random() * ENEMY_SPRITE_SHEET.PHASE_RANDOM_RANGE;
     slot.attackTimer = tier === 'boss' ? BOSS_ATTACK.INITIAL_DELAY : 0;
 
     slot.poisonDamagePerTick = 0;
@@ -354,12 +329,10 @@ export class EnemyManager {
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);
       this.mesh.setColorAt(renderIndex, slot.color);
-      this.animPhaseAttribute.array[renderIndex] = slot.animPhase;
       renderIndex++;
     }
     this.mesh.count = renderIndex;
     this.mesh.instanceMatrix.needsUpdate = true;
-    this.animPhaseAttribute.needsUpdate = true;
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }

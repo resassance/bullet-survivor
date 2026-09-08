@@ -142,7 +142,7 @@ export class BulletManager {
       const vx =
         pelletCount === 1
           ? THREE.MathUtils.randFloatSpread(spread)
-          : (i / (pelletCount - 1) - 0.5) * spread * this.bulletSpeed;
+          : (i / (pelletCount - 1) - 0.5) * spread;
 
       slot.alive = true;
       slot.x = playerPosition.x;
@@ -345,6 +345,20 @@ export class BulletManager {
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
     this.assistStrength = 0;
+    this.currentAmmo = this.magazineCapacity;
+    this.reloading = false;
+    this.reloadTimer = 0;
+  }
+
+  public refillAmmo(): void {
+    for (const slot of this.slots) {
+      slot.alive = false;
+      slot.pierceRemaining = 0;
+    }
+    this.mesh.count = 0;
+    this.fireCooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
     this.currentAmmo = this.magazineCapacity;
     this.reloading = false;
     this.reloadTimer = 0;

@@ -40,6 +40,7 @@ import { OverflowBar } from '../ui/OverflowBar';
 import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
 import { AudioManager } from '../managers/AudioManager';
+import { SaveManager, type SaveData } from '../managers/SaveManager';
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { WEAPONS } from '../gameplay/weapons';
@@ -113,6 +114,7 @@ export class Game {
   private battleWorld!: THREE.Group;
   private campHotspotOverlay: CampHotspotOverlay;
   private audioManager: AudioManager;
+  private saveManager: SaveManager;
   private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
@@ -212,12 +214,16 @@ export class Game {
       },
     });
     this.campScreen = new CampScreen(container, {
-      onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onWeaponSelected: (weaponId) => {
+        this.bulletManager.switchWeapon(weaponId);
+        this.persist();
+      },
       onArchiveOpen: () => this.openArchive(),
       onPanelClosed: () => this.returnToCampOverview(),
       isAudioMuted: () => this.audioManager.isMuted(),
       onToggleAudioMuted: () => {
         this.audioManager.setMuted(!this.audioManager.isMuted());
+        this.persist();
         return this.audioManager.isMuted();
       },
     });
@@ -240,7 +246,15 @@ export class Game {
         }
       },
       onSkipStage: () => this.debugSkipStage(),
+      onStageBack: () => this.debugJumpStage(-1),
+      onStageForward: () => this.debugJumpStage(1),
     });
+
+    this.saveManager = new SaveManager();
+    const savedData = this.saveManager.load();
+    if (savedData) {
+      this.applySaveData(savedData);
+    }
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
@@ -669,6 +683,7 @@ export class Game {
       const wave = this.endlessStageManager.currentStage;
       const isRecord = wave > this.endlessBestWave;
       this.endlessBestWave = Math.max(this.endlessBestWave, wave);
+      this.persist();
       this.gameOverScreen.show({
         title: 'забег окончен',
         subtitle: isRecord
@@ -688,6 +703,7 @@ export class Game {
       this.endlessStageManager.advanceStage();
       this.endlessEliteSpawnedThisWave = false;
       this.endlessBossSpawnedThisWave = false;
+      this.resetForLevelTransition();
       return;
     }
 
@@ -710,10 +726,12 @@ export class Game {
       }
 
       this.stageManager.advanceStage();
+      this.resetForLevelTransition();
       this.autoEquipStoryWeapon();
       this.syncStoryAssist();
       this.storyBossSpawnedThisStage = false;
       this.bossAttackManager.reset();
+      this.persist();
       this.fadeOverlay.transition(() => {
         const dialogue = pickIntroDialogue(this.stageManager.currentStage);
         this.dialogueScreen.play(dialogue, () => {
@@ -748,6 +766,7 @@ export class Game {
 
   private finishStory(): void {
     this.storyCompleted = true;
+    this.persist();
     this.fadeOverlay.transition(() => {
       this.creditsScreen.show();
     });
@@ -989,6 +1008,62 @@ export class Game {
     this.activeStageManager.forceClear();
   }
 
+  private debugJumpStage(delta: number): void {
+    const manager = this.activeStageManager;
+    const maxStage = this.mode === 'story' ? STORY_PROGRESSION.TOTAL_STAGES : Number.MAX_SAFE_INTEGER;
+    const nextStage = Math.min(maxStage, Math.max(1, manager.currentStage + delta));
+    if (nextStage === manager.currentStage) return;
+
+    this.enemyManager.clearAllAlive();
+    manager.setStage(nextStage);
+    this.bossAttackManager.reset();
+    this.resetForLevelTransition();
+
+    if (this.mode === 'endless') {
+      this.endlessEliteSpawnedThisWave = false;
+      this.endlessBossSpawnedThisWave = false;
+    } else {
+      this.storyBossSpawnedThisStage = false;
+      this.autoEquipStoryWeapon();
+      this.syncStoryAssist();
+    }
+
+    this.stageIndicator.update(
+      manager.currentStage,
+      manager.spawnedCount,
+      manager.totalCount,
+      this.mode === 'endless' ? 'ВОЛНА' : 'УРОВЕНЬ'
+    );
+  }
+
+  private resetForLevelTransition(): void {
+    this.player.resetPosition();
+    this.healthManager.healToFull();
+    this.bulletManager.refillAmmo();
+    this.hpBar.update(this.healthManager.current, this.healthManager.max);
+    this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+  }
+
+  private applySaveData(data: SaveData): void {
+    this.storyCompleted = data.storyCompleted;
+    this.stageManager.setStage(Math.min(data.storyStage, STORY_PROGRESSION.TOTAL_STAGES));
+    this.endlessBestWave = Math.max(0, data.endlessBestWave);
+    if (isWeaponUnlocked(data.weaponId, this.stageManager.currentStage)) {
+      this.bulletManager.switchWeapon(data.weaponId);
+    }
+    this.audioManager.setMuted(data.audioMuted);
+  }
+
+  private persist(): void {
+    this.saveManager.save({
+      storyStage: this.stageManager.currentStage,
+      storyCompleted: this.storyCompleted,
+      endlessBestWave: this.endlessBestWave,
+      weaponId: this.bulletManager.weaponId,
+      audioMuted: this.audioManager.isMuted(),
+    });
+  }
+
   private restart(): void {
     this.mode = 'story';
     this.storyCompleted = false;
@@ -1038,6 +1113,7 @@ export class Game {
     this.isGameOver = false;
 
     this.isPaused = true;
+    this.persist();
     this.returnToCampHub();
   }
 }
