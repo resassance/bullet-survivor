@@ -6,9 +6,10 @@ export interface SaveData {
   endlessBestWave: number;
   weaponId: string;
   audioMuted: boolean;
+  frozenCurrency: number;
 }
 
-function isSaveData(value: unknown): value is SaveData {
+function isPartialSaveData(value: unknown): value is Omit<SaveData, 'frozenCurrency'> {
   if (!value || typeof value !== 'object') return false;
   const data = value as Record<string, unknown>;
   return (
@@ -26,7 +27,11 @@ export class SaveManager {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      return isSaveData(parsed) ? parsed : null;
+      if (!isPartialSaveData(parsed)) return null;
+      const frozenCurrency = typeof (parsed as { frozenCurrency?: unknown }).frozenCurrency === 'number'
+        ? (parsed as { frozenCurrency: number }).frozenCurrency
+        : 0;
+      return { ...parsed, frozenCurrency };
     } catch {
       return null;
     }

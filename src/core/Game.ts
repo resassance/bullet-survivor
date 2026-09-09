@@ -41,6 +41,10 @@ import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
 import { AudioManager } from '../managers/AudioManager';
 import { SaveManager, type SaveData } from '../managers/SaveManager';
+import { CurrencyHUD } from '../ui/CurrencyHUD';
+import { ShopOverlay } from '../ui/ShopOverlay';
+import { SHOP_ITEMS, type ShopItem } from '../gameplay/shopItems';
+
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { WEAPONS } from '../gameplay/weapons';
@@ -71,6 +75,7 @@ import {
   OVERFLOW,
   VOID_FINALE,
   BOSS_ATTACK,
+  CURRENCY,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -115,6 +120,11 @@ export class Game {
   private campHotspotOverlay: CampHotspotOverlay;
   private audioManager: AudioManager;
   private saveManager: SaveManager;
+  private currencyHud: CurrencyHUD;
+  private shopOverlay: ShopOverlay;
+  private runCurrency = 0;
+  private frozenCurrency = 0;
+  private purchasedShopItems: Set<string> = new Set();
   private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
@@ -185,6 +195,12 @@ export class Game {
     this.ammoIndicator = new AmmoIndicator(container);
     this.stageIndicator = new StageIndicator(container);
     this.weaponIndicator = new WeaponIndicator(container);
+    this.currencyHud = new CurrencyHUD(container);
+    this.currencyHud.setVisible(false);
+    this.shopOverlay = new ShopOverlay(container, {
+      onPurchase: (item) => this.handleShopPurchase(item),
+      onContinue: () => this.closeShop(),
+    });
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
@@ -504,6 +520,7 @@ export class Game {
     if (this.mode === 'endless') {
       this.gemManager.spawn(x, z);
       this.addOverflowCharge(tier);
+      this.addCurrency(this.currencyForTier(tier));
     }
     this.particleManager.burst(x, y, z);
 
@@ -535,6 +552,37 @@ export class Game {
     if (this.overflowCharge >= OVERFLOW.MAX) {
       this.triggerRandomSpecial();
     }
+  }
+
+  private currencyForTier(tier: EnemyTier): number {
+    return tier === 'boss'
+      ? CURRENCY.BOSS_KILL
+      : tier === 'elite'
+        ? CURRENCY.ELITE_KILL
+        : CURRENCY.NORMAL_KILL;
+  }
+
+  private addCurrency(amount: number): void {
+    this.runCurrency += amount;
+    this.currencyHud.update(this.runCurrency);
+  }
+
+  private openShop(): void {
+    this.isPaused = true;
+    this.shopOverlay.show(SHOP_ITEMS, this.runCurrency, this.purchasedShopItems);
+  }
+
+  private handleShopPurchase(item: ShopItem): void {
+    if (this.purchasedShopItems.has(item.id) || this.runCurrency < item.price) return;
+    this.runCurrency -= item.price;
+    this.purchasedShopItems.add(item.id);
+    this.currencyHud.update(this.runCurrency);
+    this.shopOverlay.show(SHOP_ITEMS, this.runCurrency, this.purchasedShopItems);
+  }
+
+  private closeShop(): void {
+    this.shopOverlay.hide();
+    this.isPaused = false;
   }
 
   private triggerRandomSpecial(): void {
@@ -683,12 +731,15 @@ export class Game {
       const wave = this.endlessStageManager.currentStage;
       const isRecord = wave > this.endlessBestWave;
       this.endlessBestWave = Math.max(this.endlessBestWave, wave);
+      const frozenGained = this.runCurrency;
+      this.frozenCurrency += frozenGained;
+      this.runCurrency = 0;
       this.persist();
       this.gameOverScreen.show({
         title: 'забег окончен',
         subtitle: isRecord
-          ? `Волна ${wave} · новый рекорд!`
-          : `Волна ${wave} · рекорд ${this.endlessBestWave}`,
+          ? `Волна ${wave} · новый рекорд! +${frozenGained} застывших кристаллов`
+          : `Волна ${wave} · рекорд ${this.endlessBestWave} · +${frozenGained} застывших кристаллов`,
         buttonLabel: 'в лагерь',
         onAction: () => this.endEndlessRun(),
       });
@@ -700,10 +751,15 @@ export class Game {
 
   private handleStageCleared(): void {
     if (this.mode === 'endless') {
+      const clearedWave = this.endlessStageManager.currentStage;
       this.endlessStageManager.advanceStage();
       this.endlessEliteSpawnedThisWave = false;
       this.endlessBossSpawnedThisWave = false;
       this.resetForLevelTransition();
+      this.addCurrency(CURRENCY.WAVE_CLEAR_BASE + clearedWave * CURRENCY.WAVE_CLEAR_PER_WAVE);
+      if (Math.random() < CURRENCY.SHOP_CHANCE) {
+        this.openShop();
+      }
       return;
     }
 
@@ -821,11 +877,15 @@ export class Game {
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
     this.bossAttackManager.reset();
+    this.runCurrency = 0;
+    this.purchasedShopItems.clear();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.setVisible(true);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+    this.currencyHud.setVisible(true);
+    this.currencyHud.update(0);
     this.stageIndicator.update(
       this.endlessStageManager.currentStage,
       this.endlessStageManager.spawnedCount,
@@ -847,6 +907,8 @@ export class Game {
     this.expBar.setVisible(false);
     this.overflowBar.setVisible(false);
     this.overflowBar.setActiveLabel(null);
+    this.currencyHud.setVisible(false);
+    this.shopOverlay.hide();
     this.specialWeaponManager.deactivate();
     this.enemyManager.reset();
     this.bossAttackManager.reset();
@@ -913,7 +975,8 @@ export class Game {
       this.bulletManager.weaponId,
       this.stageManager.currentStage,
       this.storyCompleted,
-      !this.storyCompleted
+      !this.storyCompleted,
+      this.frozenCurrency
     );
   }
 
@@ -998,7 +1061,8 @@ export class Game {
         this.bulletManager.weaponId,
         this.stageManager.currentStage,
         this.storyCompleted,
-        !this.storyCompleted
+        !this.storyCompleted,
+        this.frozenCurrency
       );
     }
   }
@@ -1048,6 +1112,7 @@ export class Game {
     this.storyCompleted = data.storyCompleted;
     this.stageManager.setStage(Math.min(data.storyStage, STORY_PROGRESSION.TOTAL_STAGES));
     this.endlessBestWave = Math.max(0, data.endlessBestWave);
+    this.frozenCurrency = Math.max(0, data.frozenCurrency);
     if (isWeaponUnlocked(data.weaponId, this.stageManager.currentStage)) {
       this.bulletManager.switchWeapon(data.weaponId);
     }
@@ -1061,6 +1126,7 @@ export class Game {
       endlessBestWave: this.endlessBestWave,
       weaponId: this.bulletManager.weaponId,
       audioMuted: this.audioManager.isMuted(),
+      frozenCurrency: this.frozenCurrency,
     });
   }
 

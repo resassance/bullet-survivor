@@ -27,11 +27,13 @@ export class CampScreen {
   private panelBody: HTMLDivElement;
   private infoStage: HTMLDivElement;
   private infoLoadout: HTMLDivElement;
+  private infoCurrency: HTMLDivElement;
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
   private selectedWeaponId = 'standard';
   private currentStage = 1;
   private storyCompleted = false;
   private weaponAutoManaged = false;
+  private frozenCurrency = 0;
   private callbacks: CampScreenCallbacks;
 
   constructor(container: HTMLElement, callbacks: CampScreenCallbacks) {
@@ -46,6 +48,7 @@ export class CampScreen {
           <div class="camp-info-row">
             <span class="camp-info-stage"></span>
             <span class="camp-info-loadout"></span>
+            <span class="camp-info-currency"></span>
           </div>
         </div>
       </div>
@@ -67,6 +70,7 @@ export class CampScreen {
     this.panelBody = this.element.querySelector('.camp-panel-body') as HTMLDivElement;
     this.infoStage = this.element.querySelector('.camp-info-stage') as HTMLDivElement;
     this.infoLoadout = this.element.querySelector('.camp-info-loadout') as HTMLDivElement;
+    this.infoCurrency = this.element.querySelector('.camp-info-currency') as HTMLDivElement;
 
     const closeButton = this.element.querySelector('.camp-panel-close') as HTMLButtonElement;
     closeButton.addEventListener('click', () => this.closePanel());
@@ -241,6 +245,7 @@ export class CampScreen {
       : `УРОВЕНЬ ${this.currentStage}/${STORY_PROGRESSION.TOTAL_STAGES}`;
     const weaponName = WEAPONS.find((weapon) => weapon.id === this.selectedWeaponId)?.name ?? '';
     this.infoLoadout.textContent = weaponName;
+    this.infoCurrency.textContent = `◆ ${this.frozenCurrency}`;
   }
 
   private highlightWeapon(weaponId: string): void {
@@ -259,12 +264,14 @@ export class CampScreen {
     selectedWeaponId: string,
     currentStage: number,
     storyCompleted = false,
-    weaponAutoManaged = false
+    weaponAutoManaged = false,
+    frozenCurrency = 0
   ): void {
     this.selectedWeaponId = selectedWeaponId;
     this.currentStage = currentStage;
     this.storyCompleted = storyCompleted;
     this.weaponAutoManaged = weaponAutoManaged;
+    this.frozenCurrency = frozenCurrency;
     this.updateInfoRow();
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');

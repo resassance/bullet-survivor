@@ -189,6 +189,15 @@ export const VOID_FINALE = {
   CYCLE_DURATION: 10,
 };
 
+export const CURRENCY = {
+  NORMAL_KILL: 1,
+  ELITE_KILL: 5,
+  BOSS_KILL: 20,
+  WAVE_CLEAR_BASE: 10,
+  WAVE_CLEAR_PER_WAVE: 2,
+  SHOP_CHANCE: 0.35,
+};
+
 export const CRATE = {
   POOL_SIZE: 8,
   WIDTH: 1.7,

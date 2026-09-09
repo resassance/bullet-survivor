@@ -225,6 +225,128 @@ html, body {
   color: #b3a6d9;
 }
 
+.shop-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 5, 10, 0.9);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+}
+
+.shop-screen--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shop-content {
+  text-align: center;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+}
+
+.shop-title {
+  font-family: sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f5f0ff;
+  text-shadow: 0 0 20px rgba(127, 232, 255, 0.5);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+}
+
+.shop-balance {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  color: #7fe8ff;
+  margin-bottom: 20px;
+}
+
+.shop-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 14px 18px;
+  background: rgba(20, 15, 35, 0.7);
+  border: 1px solid rgba(127, 232, 255, 0.3);
+  border-radius: 10px;
+}
+
+.shop-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shop-item-name {
+  font-family: sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f5f0ff;
+}
+
+.shop-item-description {
+  font-family: sans-serif;
+  font-size: 0.78rem;
+  color: #b3a6d9;
+}
+
+.shop-item-buy {
+  flex-shrink: 0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(127, 232, 255, 0.16);
+  border: 1px solid rgba(127, 232, 255, 0.5);
+  color: #7fe8ff;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.shop-item-buy:hover:not(:disabled) {
+  background: rgba(127, 232, 255, 0.3);
+  box-shadow: 0 0 18px rgba(127, 232, 255, 0.35);
+}
+
+.shop-item-buy:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.shop-continue {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 12px 28px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(106, 63, 251, 0.2);
+  border: 1px solid rgba(155, 127, 255, 0.5);
+  color: #f5f0ff;
+}
+
+.shop-continue:hover {
+  background: rgba(106, 63, 251, 0.35);
+}
+
 .hit-flash {
   position: absolute;
   inset: 0;
@@ -282,6 +404,26 @@ html, body {
   border-radius: 6px;
   padding: 5px 10px;
   pointer-events: none;
+}
+
+.currency-hud {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 16px) + 34px);
+  right: 16px;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #7fe8ff;
+  background: rgba(10, 8, 18, 0.6);
+  border: 1px solid rgba(127, 232, 255, 0.35);
+  border-radius: 6px;
+  padding: 5px 10px;
+  pointer-events: none;
+}
+
+.currency-hud--hidden {
+  display: none;
 }
 
 .weapon-indicator {
@@ -575,6 +717,10 @@ html, body {
 
 .camp-info-stage {
   color: #ffb066;
+}
+
+.camp-info-currency {
+  color: #7fe8ff;
 }
 
 .camp-settings-row {
