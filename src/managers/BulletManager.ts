@@ -42,6 +42,7 @@ export class BulletManager {
   private reloadSpeedMultiplier = 1;
   private assistStrength = 0;
   public poisonStacks = 0;
+  public cardPoisonStacks = 0;
 
   constructor() {
     const geometry = new THREE.CapsuleGeometry(
@@ -258,6 +259,10 @@ export class BulletManager {
     );
   }
 
+  public setCardPoisonStacks(amount: number): void {
+    this.cardPoisonStacks = Math.max(0, Math.min(amount, BULLET_LIMITS.MAX_POISON_STACKS));
+  }
+
   public increaseMagazineSize(amount: number): void {
     this.magazineBonus = Math.min(
       this.magazineBonus + amount,
@@ -342,6 +347,7 @@ export class BulletManager {
     this.pierceCount = 0;
     this.damageBonus = 0;
     this.poisonStacks = 0;
+    this.cardPoisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
     this.assistStrength = 0;
@@ -379,6 +385,7 @@ export class BulletManager {
     this.pierceCount = 0;
     this.damageBonus = 0;
     this.poisonStacks = 0;
+    this.cardPoisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
     this.assistStrength = 0;

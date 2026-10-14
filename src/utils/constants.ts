@@ -198,6 +198,35 @@ export const CURRENCY = {
   SHOP_CHANCE: 0.35,
 };
 
+export const CARD_TUNING = {
+  AWAKENING_CHANCE: 0.15,
+  SHOP_OFFER_COUNT: 4,
+  WAVE_OFFER_COUNT: 3,
+  TIER_PRICES: [0, 15, 40, 90],
+  FUSE_COUNT: 3,
+};
+
+export const FROZEN_CURRENCY_BREAKPOINTS = [100, 400, 1200, 3000];
+export const FROZEN_CURRENCY_BUFF_STEP = [0.03, 0.07, 0.12, 0.2];
+
+export const ARCHIVE_REWARD = {
+  ENEMY_NORMAL: 5,
+  ENEMY_ELITE: 15,
+  ENEMY_BOSS: 50,
+  WEAPON: 30,
+  BUFF: 40,
+  LORE: 25,
+};
+
+export const ARCHIVE_KILL_THRESHOLDS = {
+  normal: 100,
+  elite: 50,
+  boss: 10,
+};
+
+export const STORY_COMPLETION_REWARD = 150;
+
+
 export const CRATE = {
   POOL_SIZE: 8,
   WIDTH: 1.7,

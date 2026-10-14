@@ -1,7 +1,9 @@
-import type { ShopItem } from '../gameplay/shopItems';
+import type { BuffCardDef } from '../gameplay/buffCards';
+import { CARD_TUNING } from '../utils/constants';
+import { createBuffCardElement } from './buffCardElement';
 
 export interface ShopOverlayCallbacks {
-  onPurchase: (item: ShopItem) => void;
+  onPurchase: (def: BuffCardDef, offerIndex: number) => void;
   onContinue: () => void;
 }
 
@@ -11,8 +13,8 @@ export class ShopOverlay {
   private itemsContainer: HTMLDivElement;
   private continueButton: HTMLButtonElement;
   private callbacks: ShopOverlayCallbacks;
-  private items: ShopItem[] = [];
-  private purchased: Set<string> = new Set();
+  private offers: BuffCardDef[] = [];
+  private purchasedOffers: Set<number> = new Set();
   private balance = 0;
 
   constructor(container: HTMLElement, callbacks: ShopOverlayCallbacks) {
@@ -24,29 +26,34 @@ export class ShopOverlay {
       <div class="shop-content">
         <h1 class="shop-title">торговец</h1>
         <div class="shop-balance"></div>
-        <div class="shop-items"></div>
+        <div class="buff-card-grid"></div>
         <button type="button" class="shop-continue">дальше</button>
       </div>
     `;
 
     this.balanceElement = this.element.querySelector('.shop-balance') as HTMLDivElement;
-    this.itemsContainer = this.element.querySelector('.shop-items') as HTMLDivElement;
+    this.itemsContainer = this.element.querySelector('.buff-card-grid') as HTMLDivElement;
     this.continueButton = this.element.querySelector('.shop-continue') as HTMLButtonElement;
     this.continueButton.addEventListener('click', () => this.callbacks.onContinue());
 
     container.appendChild(this.element);
   }
 
-  public show(items: ShopItem[], balance: number, purchased: Set<string>): void {
-    this.items = items;
+  public show(offers: BuffCardDef[], balance: number): void {
+    this.offers = offers;
+    this.purchasedOffers = new Set();
     this.balance = balance;
-    this.purchased = purchased;
     this.render();
     this.element.classList.add('shop-screen--visible');
   }
 
   public setBalance(balance: number): void {
     this.balance = balance;
+    this.render();
+  }
+
+  public markPurchased(offerIndex: number): void {
+    this.purchasedOffers.add(offerIndex);
     this.render();
   }
 
@@ -58,26 +65,22 @@ export class ShopOverlay {
     this.balanceElement.textContent = `◆ ${this.balance}`;
     this.itemsContainer.innerHTML = '';
 
-    for (const item of this.items) {
-      const isPurchased = this.purchased.has(item.id);
-      const canAfford = this.balance >= item.price;
+    this.offers.forEach((def, index) => {
+      const price = CARD_TUNING.TIER_PRICES[def.tier] ?? 0;
+      const isPurchased = this.purchasedOffers.has(index);
+      const canAfford = this.balance >= price;
 
-      const row = document.createElement('div');
-      row.className = 'shop-item';
-      row.innerHTML = `
-        <div class="shop-item-text">
-          <span class="shop-item-name">${item.name}</span>
-          <span class="shop-item-description">${item.description}</span>
-        </div>
-        <button type="button" class="shop-item-buy" ${isPurchased || !canAfford ? 'disabled' : ''}>
-          ${isPurchased ? 'куплено' : `◆ ${item.price}`}
-        </button>
-      `;
+      const card = createBuffCardElement({
+        type: def.type,
+        tier: def.tier,
+        name: def.name,
+        description: def.description,
+        badge: isPurchased ? 'куплено' : `◆ ${price}`,
+        disabled: isPurchased || !canAfford,
+        onActivate: () => this.callbacks.onPurchase(def, index),
+      });
 
-      const buyButton = row.querySelector('.shop-item-buy') as HTMLButtonElement;
-      buyButton.addEventListener('click', () => this.callbacks.onPurchase(item));
-
-      this.itemsContainer.appendChild(row);
-    }
+      this.itemsContainer.appendChild(card);
+    });
   }
 }

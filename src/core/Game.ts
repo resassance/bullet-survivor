@@ -40,10 +40,25 @@ import { OverflowBar } from '../ui/OverflowBar';
 import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
 import { AudioManager } from '../managers/AudioManager';
-import { SaveManager, type SaveData } from '../managers/SaveManager';
+import { SaveManager, type SaveData, type KillCounts } from '../managers/SaveManager';
 import { CurrencyHUD } from '../ui/CurrencyHUD';
 import { ShopOverlay } from '../ui/ShopOverlay';
-import { SHOP_ITEMS, type ShopItem } from '../gameplay/shopItems';
+import { WaveRewardOverlay } from '../ui/WaveRewardOverlay';
+import { CardsInventoryOverlay } from '../ui/CardsInventoryOverlay';
+import { AwakeningOverlay } from '../ui/AwakeningOverlay';
+import { CardsButton } from '../ui/CardsButton';
+import { RewardPopup } from '../ui/RewardPopup';
+import { CardManager } from '../managers/CardManager';
+import {
+  type BuffCardDef,
+  type BuffCardInstance,
+  type BuffType,
+  type CardTier,
+  instantiateCard,
+  rollWaveOffers,
+  rollShopOffers,
+} from '../gameplay/buffCards';
+
 
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
@@ -76,6 +91,12 @@ import {
   VOID_FINALE,
   BOSS_ATTACK,
   CURRENCY,
+  CARD_TUNING,
+  ARCHIVE_REWARD,
+  ARCHIVE_KILL_THRESHOLDS,
+  STORY_COMPLETION_REWARD,
+  FROZEN_CURRENCY_BREAKPOINTS,
+  FROZEN_CURRENCY_BUFF_STEP,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -122,9 +143,18 @@ export class Game {
   private saveManager: SaveManager;
   private currencyHud: CurrencyHUD;
   private shopOverlay: ShopOverlay;
+  private waveRewardOverlay: WaveRewardOverlay;
+  private cardsInventoryOverlay: CardsInventoryOverlay;
+  private awakeningOverlay: AwakeningOverlay;
+  private cardsButton: CardsButton;
+  private rewardPopup: RewardPopup;
+  private cardManager: CardManager;
   private runCurrency = 0;
   private frozenCurrency = 0;
-  private purchasedShopItems: Set<string> = new Set();
+  private currentShopOffers: BuffCardDef[] = [];
+  private unlockedArchiveIds: Set<string> = new Set();
+  private killCounts: KillCounts = { normal: 0, elite: 0, boss: 0 };
+  private endlessIntroShown = false;
   private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
@@ -197,10 +227,24 @@ export class Game {
     this.weaponIndicator = new WeaponIndicator(container);
     this.currencyHud = new CurrencyHUD(container);
     this.currencyHud.setVisible(false);
+    this.cardManager = new CardManager();
     this.shopOverlay = new ShopOverlay(container, {
-      onPurchase: (item) => this.handleShopPurchase(item),
+      onPurchase: (def, offerIndex) => this.handleShopPurchase(def, offerIndex),
       onContinue: () => this.closeShop(),
     });
+    this.waveRewardOverlay = new WaveRewardOverlay(container, (def) =>
+      this.handleWaveRewardPick(def)
+    );
+    this.cardsInventoryOverlay = new CardsInventoryOverlay(container, {
+      onFuse: (type, tier) => this.handleCardFuse(type, tier),
+      onClose: () => this.closeCardsInventory(),
+    });
+    this.awakeningOverlay = new AwakeningOverlay(container, {
+      onAwaken: (a, b) => this.handleAwaken(a, b),
+      onClose: () => this.closeAwakening(),
+    });
+    this.cardsButton = new CardsButton(container, () => this.openCardsInventory());
+    this.cardsButton.setVisible(false);
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
@@ -232,6 +276,7 @@ export class Game {
     this.campScreen = new CampScreen(container, {
       onWeaponSelected: (weaponId) => {
         this.bulletManager.switchWeapon(weaponId);
+        this.tryUnlockArchive(`weapon_${weaponId}`, ARCHIVE_REWARD.WEAPON);
         this.persist();
       },
       onArchiveOpen: () => this.openArchive(),
@@ -265,6 +310,8 @@ export class Game {
       onStageBack: () => this.debugJumpStage(-1),
       onStageForward: () => this.debugJumpStage(1),
     });
+
+    this.rewardPopup = new RewardPopup(container);
 
     this.saveManager = new SaveManager();
     const savedData = this.saveManager.load();
@@ -517,6 +564,7 @@ export class Game {
   }
 
   private killEnemy(x: number, y: number, z: number, tier: EnemyTier, fromExplosion = false): void {
+    this.trackEnemyKill(tier);
     if (this.mode === 'endless') {
       this.gemManager.spawn(x, z);
       this.addOverflowCharge(tier);
@@ -546,12 +594,48 @@ export class Game {
           ? OVERFLOW.ELITE_KILL
           : OVERFLOW.NORMAL_KILL;
 
-    this.overflowCharge = Math.min(OVERFLOW.MAX, this.overflowCharge + amount);
+    this.overflowCharge = Math.min(
+      OVERFLOW.MAX,
+      this.overflowCharge + amount * (1 + this.frozenBuffPercent())
+    );
     this.overflowBar.update(this.overflowCharge, OVERFLOW.MAX);
 
     if (this.overflowCharge >= OVERFLOW.MAX) {
       this.triggerRandomSpecial();
     }
+  }
+
+  private frozenBuffPercent(): number {
+    let total = 0;
+    for (let i = 0; i < FROZEN_CURRENCY_BREAKPOINTS.length; i++) {
+      if (this.frozenCurrency >= FROZEN_CURRENCY_BREAKPOINTS[i]) total += FROZEN_CURRENCY_BUFF_STEP[i];
+    }
+    return total;
+  }
+
+  private tryUnlockArchive(id: string, reward: number): void {
+    if (this.unlockedArchiveIds.has(id)) return;
+    this.unlockedArchiveIds.add(id);
+    this.frozenCurrency += reward;
+    this.persist();
+  }
+
+  private trackEnemyKill(tier: EnemyTier): void {
+    this.killCounts[tier] += 1;
+    if (this.killCounts[tier] === ARCHIVE_KILL_THRESHOLDS[tier]) {
+      const reward =
+        tier === 'boss'
+          ? ARCHIVE_REWARD.ENEMY_BOSS
+          : tier === 'elite'
+            ? ARCHIVE_REWARD.ENEMY_ELITE
+            : ARCHIVE_REWARD.ENEMY_NORMAL;
+      this.tryUnlockArchive(`enemy_${tier}`, reward);
+    }
+  }
+
+  private discoverCard(card: BuffCardInstance): void {
+    if (card.type === 'hybrid') return;
+    this.tryUnlockArchive(`buff_${card.type}_${card.tier}`, ARCHIVE_REWARD.BUFF);
   }
 
   private currencyForTier(tier: EnemyTier): number {
@@ -563,25 +647,110 @@ export class Game {
   }
 
   private addCurrency(amount: number): void {
-    this.runCurrency += amount;
+    const bonus = 1 + this.cardManager.totalEffect('fragments_gain') / 100;
+    this.runCurrency += Math.round(amount * bonus);
     this.currencyHud.update(this.runCurrency);
+  }
+
+  private refreshCardEffects(): void {
+    this.enemyManager.setSpeedMultiplier(1 - this.cardManager.totalEffect('enemy_slow') / 100);
+    this.enemyManager.setHighlightEnabled(this.cardManager.hasEffect('enemy_outline'));
+    this.healthManager.setCardRegen(
+      (this.healthManager.max * this.cardManager.totalEffect('hp_regen')) / 100
+    );
+    const poisonPercent = this.cardManager.totalEffect('poison_shot');
+    this.bulletManager.setCardPoisonStacks(Math.round(poisonPercent / 0.5));
+  }
+
+  private openWaveReward(): void {
+    this.isPaused = true;
+    const wave = this.endlessStageManager.currentStage;
+    const offers = rollWaveOffers(wave, CARD_TUNING.WAVE_OFFER_COUNT);
+    this.waveRewardOverlay.show(offers);
+  }
+
+  private handleWaveRewardPick(def: BuffCardDef): void {
+    const card = instantiateCard(def);
+    this.cardManager.addCard(card);
+    this.discoverCard(card);
+    this.refreshCardEffects();
+    this.waveRewardOverlay.hide();
+    this.rollSpecialEncounter();
+  }
+
+  private rollSpecialEncounter(): void {
+    const canAwaken = this.cardManager.tierThreeCards().length >= 2;
+    const roll = Math.random();
+    if (canAwaken && roll < CARD_TUNING.AWAKENING_CHANCE) {
+      this.openAwakening();
+      return;
+    }
+    if (roll < CARD_TUNING.AWAKENING_CHANCE + CURRENCY.SHOP_CHANCE) {
+      this.openShop();
+      return;
+    }
+    this.isPaused = false;
   }
 
   private openShop(): void {
     this.isPaused = true;
-    this.shopOverlay.show(SHOP_ITEMS, this.runCurrency, this.purchasedShopItems);
+    this.currentShopOffers = rollShopOffers(CARD_TUNING.SHOP_OFFER_COUNT);
+    this.shopOverlay.show(this.currentShopOffers, this.runCurrency);
   }
 
-  private handleShopPurchase(item: ShopItem): void {
-    if (this.purchasedShopItems.has(item.id) || this.runCurrency < item.price) return;
-    this.runCurrency -= item.price;
-    this.purchasedShopItems.add(item.id);
+  private handleShopPurchase(def: BuffCardDef, offerIndex: number): void {
+    const price = CARD_TUNING.TIER_PRICES[def.tier] ?? 0;
+    if (this.runCurrency < price) return;
+    this.runCurrency -= price;
+    const card = instantiateCard(def);
+    this.cardManager.addCard(card);
+    this.discoverCard(card);
+    this.refreshCardEffects();
     this.currencyHud.update(this.runCurrency);
-    this.shopOverlay.show(SHOP_ITEMS, this.runCurrency, this.purchasedShopItems);
+    this.shopOverlay.markPurchased(offerIndex);
+    this.shopOverlay.setBalance(this.runCurrency);
   }
 
   private closeShop(): void {
     this.shopOverlay.hide();
+    this.isPaused = false;
+  }
+
+  private openAwakening(): void {
+    this.isPaused = true;
+    this.awakeningOverlay.show(this.cardManager.tierThreeCards());
+  }
+
+  private handleAwaken(instanceIdA: string, instanceIdB: string): void {
+    const created = this.cardManager.awaken(instanceIdA, instanceIdB);
+    if (created) {
+      this.discoverCard(created);
+      this.refreshCardEffects();
+    }
+    this.closeAwakening();
+  }
+
+  private closeAwakening(): void {
+    this.awakeningOverlay.hide();
+    this.isPaused = false;
+  }
+
+  private openCardsInventory(): void {
+    this.isPaused = true;
+    this.cardsInventoryOverlay.show(this.cardManager.cards, this.cardManager.fusionGroups());
+  }
+
+  private handleCardFuse(type: BuffType, tier: CardTier): void {
+    const created = this.cardManager.fuse(type, tier);
+    if (created) {
+      this.discoverCard(created);
+      this.refreshCardEffects();
+    }
+    this.cardsInventoryOverlay.show(this.cardManager.cards, this.cardManager.fusionGroups());
+  }
+
+  private closeCardsInventory(): void {
+    this.cardsInventoryOverlay.hide();
     this.isPaused = false;
   }
 
@@ -591,6 +760,7 @@ export class Game {
     this.overflowCharge = 0;
     this.overflowBar.update(0, OVERFLOW.MAX);
     this.overflowBar.setActiveLabel(pick.name);
+    this.tryUnlockArchive(`weapon_special_${pick.id}`, ARCHIVE_REWARD.WEAPON);
   }
 
   private handleGemCollected(value: number): void {
@@ -719,7 +889,8 @@ export class Game {
     const dx = Math.abs(this.player.position.x - lockedX);
     if (dx > BOSS_ATTACK.ZONE_WIDTH / 2) return;
 
-    const damageApplied = this.healthManager.takeDamage(BOSS_ATTACK.DAMAGE);
+    const reduction = this.cardManager.totalEffect('boss_dmg_reduction') / 100;
+    const damageApplied = this.healthManager.takeDamage(BOSS_ATTACK.DAMAGE * (1 - reduction));
     if (!damageApplied) return;
     this.applyPlayerDamageFeedback(1.4);
   }
@@ -757,9 +928,7 @@ export class Game {
       this.endlessBossSpawnedThisWave = false;
       this.resetForLevelTransition();
       this.addCurrency(CURRENCY.WAVE_CLEAR_BASE + clearedWave * CURRENCY.WAVE_CLEAR_PER_WAVE);
-      if (Math.random() < CURRENCY.SHOP_CHANCE) {
-        this.openShop();
-      }
+      this.openWaveReward();
       return;
     }
 
@@ -818,6 +987,7 @@ export class Game {
     if (weaponId !== this.bulletManager.weaponId) {
       this.bulletManager.switchWeapon(weaponId);
     }
+    this.tryUnlockArchive(`weapon_${weaponId}`, ARCHIVE_REWARD.WEAPON);
   }
 
   private finishStory(): void {
@@ -836,10 +1006,32 @@ export class Game {
   private returnToCampHub(): void {
     this.mode = 'story';
     if (this.storyCompleted) {
+      const showIntro = !this.endlessIntroShown;
+      if (showIntro) {
+        this.frozenCurrency += STORY_COMPLETION_REWARD;
+        this.endlessIntroShown = true;
+        this.persist();
+      }
       this.showCamp('endless', 'бесконечный режим', () => this.launchEndlessRun());
+      if (showIntro) {
+        this.showEndlessIntroReward();
+      }
     } else {
       this.showCamp('story', 'сюжетка', () => this.launchStageFromCamp());
     }
+  }
+
+  private showEndlessIntroReward(): void {
+    this.isPaused = true;
+    this.rewardPopup.show(STORY_COMPLETION_REWARD, () => this.closeEndlessIntroReward());
+  }
+
+  private closeEndlessIntroReward(): void {
+    this.rewardPopup.hide();
+    this.isPaused = false;
+    const station = findCampStation('endless');
+    this.cameraManager.setCampTarget(station.cameraPosition, station.cameraLookAt);
+    this.campWorld.setActiveStation('endless');
   }
 
   private launchStageFromCamp(): void {
@@ -865,7 +1057,10 @@ export class Game {
     this.endlessStageManager.reset();
     this.healthManager.reset();
     this.bulletManager.resetRunBonuses();
-    this.bulletManager.setAssistStrength(AIM_ASSIST.ENDLESS_BASE);
+    const frozenPercent = this.frozenBuffPercent();
+    this.healthManager.increaseMaxHp(PLAYER.MAX_HP * frozenPercent);
+    this.bulletManager.increaseDamage(WEAPONS[0].damage * frozenPercent);
+    this.bulletManager.setAssistStrength(AIM_ASSIST.ENDLESS_BASE * (1 + frozenPercent));
     this.levelSystem.reset();
     this.enemyManager.reset();
     this.crateManager.reset();
@@ -878,7 +1073,8 @@ export class Game {
     this.endlessBossSpawnedThisWave = false;
     this.bossAttackManager.reset();
     this.runCurrency = 0;
-    this.purchasedShopItems.clear();
+    this.cardManager.reset();
+    this.refreshCardEffects();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.setVisible(true);
@@ -886,6 +1082,7 @@ export class Game {
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
     this.currencyHud.setVisible(true);
     this.currencyHud.update(0);
+    this.cardsButton.setVisible(true);
     this.stageIndicator.update(
       this.endlessStageManager.currentStage,
       this.endlessStageManager.spawnedCount,
@@ -909,6 +1106,12 @@ export class Game {
     this.overflowBar.setActiveLabel(null);
     this.currencyHud.setVisible(false);
     this.shopOverlay.hide();
+    this.waveRewardOverlay.hide();
+    this.cardsInventoryOverlay.hide();
+    this.awakeningOverlay.hide();
+    this.cardsButton.setVisible(false);
+    this.cardManager.reset();
+    this.refreshCardEffects();
     this.specialWeaponManager.deactivate();
     this.enemyManager.reset();
     this.bossAttackManager.reset();
@@ -1050,7 +1253,7 @@ export class Game {
 
   private openArchive(): void {
     this.campScreen.hide();
-    this.archiveScreen.show();
+    this.archiveScreen.show(this.unlockedArchiveIds);
   }
 
   private closeArchive(): void {
@@ -1113,6 +1316,9 @@ export class Game {
     this.stageManager.setStage(Math.min(data.storyStage, STORY_PROGRESSION.TOTAL_STAGES));
     this.endlessBestWave = Math.max(0, data.endlessBestWave);
     this.frozenCurrency = Math.max(0, data.frozenCurrency);
+    this.unlockedArchiveIds = new Set(data.unlockedArchiveIds);
+    this.killCounts = { ...data.killCounts };
+    this.endlessIntroShown = data.endlessIntroShown;
     if (isWeaponUnlocked(data.weaponId, this.stageManager.currentStage)) {
       this.bulletManager.switchWeapon(data.weaponId);
     }
@@ -1127,6 +1333,9 @@ export class Game {
       weaponId: this.bulletManager.weaponId,
       audioMuted: this.audioManager.isMuted(),
       frozenCurrency: this.frozenCurrency,
+      unlockedArchiveIds: Array.from(this.unlockedArchiveIds),
+      killCounts: this.killCounts,
+      endlessIntroShown: this.endlessIntroShown,
     });
   }
 

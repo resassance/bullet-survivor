@@ -36,6 +36,10 @@ export class EnemyManager {
   private elapsedTime = 0;
   private material: THREE.MeshBasicMaterial;
   private frameOffsetY: number;
+  private speedMultiplier = 1;
+  private highlightEnabled = false;
+  private highlightColor = new THREE.Color(0xffe066);
+  private scratchColor = new THREE.Color();
 
   constructor() {
     const geometry = new THREE.PlaneGeometry(ENEMY.WIDTH, ENEMY.HEIGHT);
@@ -257,11 +261,19 @@ export class EnemyManager {
     return null;
   }
 
+  public setSpeedMultiplier(multiplier: number): void {
+    this.speedMultiplier = Math.max(0, multiplier);
+  }
+
+  public setHighlightEnabled(enabled: boolean): void {
+    this.highlightEnabled = enabled;
+  }
+
   private moveEnemies(delta: number, onBreach: (tier: EnemyTier) => void): void {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
 
-      slot.z += slot.speed * delta;
+      slot.z += slot.speed * this.speedMultiplier * delta;
 
       const wobble =
         Math.sin(this.elapsedTime * slot.wobbleFrequency + slot.wobblePhase) *
@@ -328,7 +340,10 @@ export class EnemyManager {
       this.dummy.updateMatrix();
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);
-      this.mesh.setColorAt(renderIndex, slot.color);
+      const renderColor = this.highlightEnabled
+        ? this.scratchColor.copy(slot.color).lerp(this.highlightColor, 0.5)
+        : slot.color;
+      this.mesh.setColorAt(renderIndex, renderColor);
       renderIndex++;
     }
     this.mesh.count = renderIndex;

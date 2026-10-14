@@ -1,5 +1,11 @@
 const STORAGE_KEY = 'bullet-survivor-save-v1';
 
+export interface KillCounts {
+  normal: number;
+  elite: number;
+  boss: number;
+}
+
 export interface SaveData {
   storyStage: number;
   storyCompleted: boolean;
@@ -7,9 +13,15 @@ export interface SaveData {
   weaponId: string;
   audioMuted: boolean;
   frozenCurrency: number;
+  unlockedArchiveIds: string[];
+  killCounts: KillCounts;
+  endlessIntroShown: boolean;
 }
 
-function isPartialSaveData(value: unknown): value is Omit<SaveData, 'frozenCurrency'> {
+function isPartialSaveData(value: unknown): value is Omit<
+  SaveData,
+  'frozenCurrency' | 'unlockedArchiveIds' | 'killCounts' | 'endlessIntroShown'
+> {
   if (!value || typeof value !== 'object') return false;
   const data = value as Record<string, unknown>;
   return (
@@ -21,17 +33,38 @@ function isPartialSaveData(value: unknown): value is Omit<SaveData, 'frozenCurre
   );
 }
 
+function normalizeKillCounts(value: unknown): KillCounts {
+  const data = (value ?? {}) as Record<string, unknown>;
+  return {
+    normal: typeof data.normal === 'number' ? data.normal : 0,
+    elite: typeof data.elite === 'number' ? data.elite : 0,
+    boss: typeof data.boss === 'number' ? data.boss : 0,
+  };
+}
+
 export class SaveManager {
   public load(): SaveData | null {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
       if (!isPartialSaveData(parsed)) return null;
-      const frozenCurrency = typeof (parsed as { frozenCurrency?: unknown }).frozenCurrency === 'number'
-        ? (parsed as { frozenCurrency: number }).frozenCurrency
-        : 0;
-      return { ...parsed, frozenCurrency };
+
+      const frozenCurrency = typeof parsed.frozenCurrency === 'number' ? parsed.frozenCurrency : 0;
+      const unlockedArchiveIds = Array.isArray(parsed.unlockedArchiveIds)
+        ? (parsed.unlockedArchiveIds as string[])
+        : [];
+      const killCounts = normalizeKillCounts(parsed.killCounts);
+      const endlessIntroShown =
+        typeof parsed.endlessIntroShown === 'boolean' ? parsed.endlessIntroShown : false;
+
+      return {
+        ...(parsed as Omit<SaveData, 'frozenCurrency' | 'unlockedArchiveIds' | 'killCounts' | 'endlessIntroShown'>),
+        frozenCurrency,
+        unlockedArchiveIds,
+        killCounts,
+        endlessIntroShown,
+      };
     } catch {
       return null;
     }
