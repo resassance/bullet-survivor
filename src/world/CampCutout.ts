@@ -8,7 +8,19 @@ export function createCampCutout(
   fallback?: THREE.Object3D
 ): THREE.Group {
   const group = new THREE.Group();
-  if (fallback) group.add(fallback);
+  if (fallback) {
+    // Schematic geometry uses the same layout box and ground pivot as final art.
+    const bounds = new THREE.Box3().setFromObject(fallback);
+    const size = bounds.getSize(new THREE.Vector3());
+    const fit = Math.min(asset.width / Math.max(size.x, 0.001), asset.height / Math.max(size.y, 0.001));
+    const [pivotX, pivotY] = asset.pivot ?? [0.5, 0];
+    const schematic = new THREE.Group();
+    schematic.add(fallback);
+    schematic.scale.setScalar(fit);
+    schematic.position.set(-(bounds.min.x + size.x * pivotX) * fit, -(bounds.min.y + size.y * pivotY) * fit, 0);
+    group.add(schematic);
+    fallback = schematic;
+  }
   if (!asset.path) return group;
 
   tryLoadTexture(asset.path, (texture) => {

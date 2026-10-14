@@ -3,8 +3,7 @@ import { CAMP_STATIONS, type CampStationDefinition, type CampStationId, type Cam
 import { CAMP_LAYOUT, CAMP_GROUND } from '../gameplay/campLayout';
 import { createCampCutout } from './CampCutout';
 import { WEAPONS } from '../gameplay/weapons';
-import { createCharacterPoseTexture } from '../utils/characterSprite';
-import { CAMP_SCENE, CAMP_CAMERA, PLAYER } from '../utils/constants';
+import { CAMP_SCENE, CAMP_CAMERA } from '../utils/constants';
 import { tryLoadTiledTexture } from '../utils/textureLoader';
 
 interface StationVisual {
@@ -56,7 +55,7 @@ export class CampWorld {
     this.backdrop = createCampCutout(CAMP_LAYOUT.backdrop.asset);
     this.backdrop.position.copy(CAMP_LAYOUT.backdrop.position);
     this.group.add(this.backdrop);
-    const foreground = createCampCutout(CAMP_LAYOUT.foregroundSupplies.asset);
+    const foreground = createCampCutout(CAMP_LAYOUT.foregroundSupplies.asset, this.buildCrates());
     foreground.position.copy(CAMP_LAYOUT.foregroundSupplies.position);
     this.group.add(foreground);
     this.group.add(this.buildAmbientLight());
@@ -73,7 +72,7 @@ export class CampWorld {
     this.character = this.buildCharacter();
     this.characterBaseY = this.character.position.y;
     this.group.add(this.character);
-    const companion = createCampCutout(CAMP_LAYOUT.companion.asset);
+    const companion = this.buildCharacter(true);
     companion.position.copy(CAMP_LAYOUT.companion.position);
     this.group.add(companion);
   }
@@ -91,7 +90,7 @@ export class CampWorld {
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -0.02, 0);
 
-    tryLoadTiledTexture(CAMP_GROUND.texturePath, CAMP_GROUND.repeatX, CAMP_GROUND.repeatY, (texture) => {
+    if (CAMP_GROUND.texturePath) tryLoadTiledTexture(CAMP_GROUND.texturePath, CAMP_GROUND.repeatX, CAMP_GROUND.repeatY, (texture) => {
       material.map = texture;
       material.color.setHex(0xffffff);
       material.emissiveMap = texture;
@@ -109,7 +108,6 @@ export class CampWorld {
 
   private buildCampfire(): THREE.PointLight {
     const fireGroup = new THREE.Group();
-    fireGroup.position.copy(CAMP_LAYOUT.fire.position);
 
     const logMaterial = new THREE.MeshStandardMaterial({
       color: 0x2b1a10,
@@ -221,19 +219,30 @@ export class CampWorld {
     this.embers.instanceMatrix.needsUpdate = true;
   }
 
-  private buildCharacter(): THREE.Group {
-    const texture = createCharacterPoseTexture('kneel');
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      alphaTest: 0.1,
-      side: THREE.DoubleSide,
-    });
-    const geometry = new THREE.PlaneGeometry(PLAYER.WIDTH, PLAYER.HEIGHT);
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.y = PLAYER.HEIGHT / 2;
-    const group = createCampCutout(CAMP_LAYOUT.character.asset, mesh);
-    group.position.copy(CAMP_LAYOUT.character.position);
+  private buildCharacter(companion = false): THREE.Group {
+    const definition = companion ? CAMP_LAYOUT.companion : CAMP_LAYOUT.character;
+    const material = new THREE.MeshStandardMaterial({ color: companion ? 0x819d91 : 0x9988ad, roughness: 1 });
+    const figure = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), material);
+    head.position.y = 1.25;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.35), material);
+    body.position.y = 0.72;
+    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 0.65), material);
+    legs.position.set(0, 0.25, 0.15);
+    figure.add(head, body, legs);
+    const group = createCampCutout(definition.asset, figure);
+    group.position.copy(definition.position);
+    return group;
+  }
+
+  private buildCrates(): THREE.Group {
+    const material = new THREE.MeshStandardMaterial({ color: 0x52504a, roughness: 1 });
+    const group = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), material);
+      crate.position.set((i % 2) * 0.55, 0.25 + Math.floor(i / 2) * 0.55, 0);
+      group.add(crate);
+    }
     return group;
   }
 
@@ -339,11 +348,11 @@ export class CampWorld {
     const dim = station.ready ? 1 : 0.4;
 
     const baseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x201509,
+      color: 0x353a43,
       roughness: 0.75,
       metalness: 0.15,
       emissive: new THREE.Color(station.accentColorHex),
-      emissiveIntensity: 0.18 * dim,
+      emissiveIntensity: 0.08 * dim,
     });
     const accentMaterial = new THREE.MeshStandardMaterial({
       color: station.accentColorHex,
@@ -465,7 +474,7 @@ export class CampWorld {
     visual.locked = locked;
 
     const dim = locked ? 0.4 : 1;
-    visual.baseMaterial.emissiveIntensity = 0.18 * dim;
+    visual.baseMaterial.emissiveIntensity = 0.08 * dim;
     visual.accentMaterial.emissiveIntensity = 0.6 * dim;
 
   }
