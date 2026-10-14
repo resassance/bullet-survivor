@@ -119,3 +119,30 @@ export const NOVEL_SCENES: NovelScene[] = [
 export function pickNovelScene(stage: number): NovelScene {
   return NOVEL_SCENES[(stage - 1) % NOVEL_SCENES.length];
 }
+
+export const FINAL_BOSS_REN_SCENE: NovelScene = {
+  id: 'stage-10-ren-arrives',
+  background: 'city_outskirts_dusk',
+  actors: [{ characterId: 'yuki', slot: 'left' }, { characterId: 'ren', slot: 'right' }],
+  lines: [
+    { characterId: 'yuki', text: 'Его щит треснул… Но этот удар я не выдержу.' },
+    { characterId: 'ren', text: 'Юки! Я прикрою тебя.' },
+    { characterId: 'yuki', text: 'Рен? Ты успел…' },
+    { characterId: 'ren', text: 'Мы связаны зеркально. Уходи в противоположный угол — я окажусь перед ударом.' },
+    { characterId: 'ren', text: 'Он целится вверх слева? Выбирай низ справа. И следи, чтобы я успел добраться.' },
+    { characterId: 'yuki', text: 'Поняла. Четыре укрытия, четыре отражения. Вместе.' },
+  ],
+};
+
+export const FINAL_BOSS_VICTORY_SCENE: NovelScene = {
+  id: 'stage-10-victory',
+  background: 'city_outskirts_dusk',
+  actors: [{ characterId: 'yuki', slot: 'center-left' }, { characterId: 'ren', slot: 'center-right' }],
+  lines: [
+    { characterId: 'ren', text: 'Держись рядом. Его сила возвращается к нему.' },
+    { characterId: 'yuki', text: 'Тишина… Мы справились?' },
+    { characterId: 'ren', text: 'Всё кончено. Ты больше не одна.' },
+    { characterId: 'yuki', text: 'Тогда возвращаемся домой.' },
+  ],
+};
+
