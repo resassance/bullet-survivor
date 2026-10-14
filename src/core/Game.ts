@@ -386,8 +386,10 @@ export class Game {
       this.updateGameplay(delta);
     }
 
-    this.campWorld.update(delta, this.cameraManager.camera);
-    this.campHotspotOverlay.update(this.cameraManager.camera, this.container);
+    this.campWorld.update(delta, this.rendererManager.aspect);
+    if (this.isCampOpen) {
+      this.campHotspotOverlay.update(this.cameraManager.camera, this.container, this.campWorld.getStationStates());
+    }
 
     this.postProcessing.render(delta);
   };
@@ -1017,7 +1019,7 @@ export class Game {
         this.showEndlessIntroReward();
       }
     } else {
-      this.showCamp('story', 'сюжетка', () => this.launchStageFromCamp());
+      this.showCamp('story', 'продолжить историю', () => this.launchStageFromCamp());
     }
   }
 
@@ -1185,6 +1187,7 @@ export class Game {
 
   private enterCampWorld(): void {
     this.isCampOpen = true;
+    this.container.classList.add('is-camp');
     this.battleWorld.visible = false;
     this.campWorld.group.visible = true;
     const stage = this.stageManager.currentStage;
@@ -1204,6 +1207,7 @@ export class Game {
 
   private exitCampWorld(): void {
     this.isCampOpen = false;
+    this.container.classList.remove('is-camp');
     this.battleWorld.visible = true;
     this.campWorld.group.visible = false;
     this.cameraManager.setCampActive(false);
@@ -1253,11 +1257,13 @@ export class Game {
 
   private openArchive(): void {
     this.campScreen.hide();
+    this.campHotspotOverlay.setVisible(false);
     this.archiveScreen.show(this.unlockedArchiveIds);
   }
 
   private closeArchive(): void {
     this.archiveScreen.hide();
+    this.campHotspotOverlay.setVisible(true);
     this.returnToCampOverview();
     if (this.campReturnConfig) {
       this.campScreen.show(
@@ -1392,3 +1398,4 @@ export class Game {
     this.returnToCampHub();
   }
 }
+

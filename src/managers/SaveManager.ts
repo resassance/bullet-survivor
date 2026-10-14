@@ -21,7 +21,7 @@ export interface SaveData {
 function isPartialSaveData(value: unknown): value is Omit<
   SaveData,
   'frozenCurrency' | 'unlockedArchiveIds' | 'killCounts' | 'endlessIntroShown'
-> {
+> & Record<string, unknown> {
   if (!value || typeof value !== 'object') return false;
   const data = value as Record<string, unknown>;
   return (
@@ -90,3 +90,4 @@ export class SaveManager {
     return this.load() !== null;
   }
 }
+

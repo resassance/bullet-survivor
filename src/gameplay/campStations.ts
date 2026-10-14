@@ -1,3 +1,6 @@
+import type { CampAssetDefinition } from './campLayout';
+import { CAMP_CAMERA } from '../utils/constants';
+
 export type CampStationId = 'weapon' | 'archive' | 'endless' | 'special' | 'settings' | 'story';
 
 export interface Vec3Like {
@@ -11,20 +14,36 @@ export interface CampStationDefinition {
   label: string;
   ready: boolean;
   propPosition: Vec3Like;
+  asset: CampAssetDefinition;
+  labelHeight: number;
   cameraPosition: Vec3Like;
   cameraLookAt: Vec3Like;
   accentColor: string;
   accentColorHex: number;
 }
 
+export interface CampStationState {
+  id: CampStationId;
+  label: string;
+  locked: boolean;
+  active: boolean;
+  anchor: Vec3Like;
+}
+
+// Selection only nudges the shared camera forward; it never orbits a flat asset.
+const stationCamera = { ...CAMP_CAMERA.OVERVIEW_POSITION, z: CAMP_CAMERA.OVERVIEW_POSITION.z - 0.35 };
+const stationLookAt = { ...CAMP_CAMERA.OVERVIEW_LOOK_AT };
+
 export const CAMP_STATIONS: CampStationDefinition[] = [
   {
     id: 'weapon',
     label: 'ОРУЖИЕ',
     ready: true,
-    propPosition: { x: -3.6, y: 0, z: 2.4 },
-    cameraPosition: { x: -1.7, y: 2.3, z: 6.2 },
-    cameraLookAt: { x: -3.6, y: 1.2, z: 2.4 },
+    propPosition: { x: -6, y: 0, z: -0.5 },
+    asset: { path: '/assets/camp/weapon.webp', width: 3.2, height: 3.1 },
+    labelHeight: 3.35,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#ff3b6e',
     accentColorHex: 0xff3b6e,
   },
@@ -32,9 +51,11 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     id: 'archive',
     label: 'АРХИВ',
     ready: true,
-    propPosition: { x: 3.6, y: 0, z: 2.4 },
-    cameraPosition: { x: 1.7, y: 2.3, z: 6.2 },
-    cameraLookAt: { x: 3.6, y: 1.2, z: 2.4 },
+    propPosition: { x: 5.3, y: 0, z: -0.4 },
+    asset: { path: '/assets/camp/archive.webp', width: 3.2, height: 3.0 },
+    labelHeight: 3.25,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#3bd6ff',
     accentColorHex: 0x3bd6ff,
   },
@@ -42,9 +63,11 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     id: 'endless',
     label: 'БЕСКОНЕЧНЫЙ РЕЖИМ',
     ready: false,
-    propPosition: { x: -5.4, y: 0, z: 5.8 },
-    cameraPosition: { x: -3.5, y: 2.4, z: 9.2 },
-    cameraLookAt: { x: -5.4, y: 1.6, z: 5.8 },
+    propPosition: { x: -3.5, y: 0, z: -3.8 },
+    asset: { path: '/assets/camp/endless.webp', width: 2.5, height: 2.7 },
+    labelHeight: 3,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#3bffb0',
     accentColorHex: 0x3bffb0,
   },
@@ -52,9 +75,11 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     id: 'special',
     label: 'СПЕЦОРУЖИЕ',
     ready: false,
-    propPosition: { x: 5.4, y: 0, z: 5.8 },
-    cameraPosition: { x: 3.5, y: 2.4, z: 9.2 },
-    cameraLookAt: { x: 5.4, y: 1.6, z: 5.8 },
+    propPosition: { x: 6.4, y: 0, z: 2.3 },
+    asset: { path: '/assets/camp/special.webp', width: 2.5, height: 1.9 },
+    labelHeight: 2.2,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#bfe0ff',
     accentColorHex: 0xbfe0ff,
   },
@@ -62,19 +87,23 @@ export const CAMP_STATIONS: CampStationDefinition[] = [
     id: 'settings',
     label: 'НАСТРОЙКИ',
     ready: true,
-    propPosition: { x: 0, y: 0, z: 7.4 },
-    cameraPosition: { x: 0, y: 2.5, z: 10.8 },
-    cameraLookAt: { x: 0, y: 1.5, z: 7.4 },
+    propPosition: { x: -5.7, y: 0, z: 3.5 },
+    asset: { path: '/assets/camp/settings.webp', width: 2.7, height: 1.6 },
+    labelHeight: 1.95,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#9b7fff',
     accentColorHex: 0x9b7fff,
   },
   {
     id: 'story',
-    label: 'ИСТОРИЯ',
+    label: 'ПРОДОЛЖИТЬ ИСТОРИЮ',
     ready: true,
-    propPosition: { x: 0, y: 0, z: -5.5 },
-    cameraPosition: { x: 0, y: 1.9, z: -0.8 },
-    cameraLookAt: { x: 0, y: 1.5, z: -5.5 },
+    propPosition: { x: 0, y: 0, z: -5.4 },
+    asset: { path: '/assets/camp/gate.webp', width: 7.2, height: 6.55 },
+    labelHeight: 6.8,
+    cameraPosition: stationCamera,
+    cameraLookAt: stationLookAt,
     accentColor: '#ffb347',
     accentColorHex: 0xffb347,
   },
@@ -87,3 +116,4 @@ export function findCampStation(id: CampStationId): CampStationDefinition {
   }
   return found;
 }
+

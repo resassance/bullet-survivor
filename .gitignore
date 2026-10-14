@@ -1,2 +1,5 @@
 node_modules/
 bullet-survivor.zip
+dist/
+/camp-*.png
+/camp-checks.json
