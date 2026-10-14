@@ -6,6 +6,8 @@ export interface DebugPanelCallbacks {
   onWeaponSelected: (weaponId: string) => void;
   onSpecialSelected: (specialId: SpecialWeaponId | null) => void;
   onSkipStage: () => void;
+  onStageBack: () => void;
+  onStageForward: () => void;
 }
 
 export class DebugPanel {
@@ -44,7 +46,9 @@ export class DebugPanel {
     const specialRow = this.buildRow('спецоружие', specialOptions);
 
     const stageRow = this.buildRow('уровень', [
+      { label: '← назад', onClick: () => callbacks.onStageBack() },
       { label: 'пропустить →', onClick: () => callbacks.onSkipStage() },
+      { label: 'вперёд →', onClick: () => callbacks.onStageForward() },
     ]);
 
     body.appendChild(weaponRow);

@@ -36,6 +36,13 @@ export class StageManager {
     this.stageCleared = false;
   }
 
+  public setStage(stage: number): void {
+    this.stage = Math.max(1, Math.floor(stage));
+    this.enemiesSpawnedThisStage = 0;
+    this.spawnCooldown = 0;
+    this.stageCleared = false;
+  }
+
   public forceClear(): void {
     this.enemiesSpawnedThisStage = this.totalEnemiesForStage(this.stage);
     this.stageCleared = true;

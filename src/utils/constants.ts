@@ -148,8 +148,9 @@ export const AIM_ASSIST = {
 };
 
 export const ENEMY_TIER = {
-  ELITE_WAVE_INTERVAL: 3,
-  BOSS_WAVE_INTERVAL: 10,
+  ELITE_WAVE_INTERVAL: 2,
+  ENDLESS_BOSS_WAVE_INTERVAL: 3,
+  STORY_BOSS_FROM_STAGE: 4,
   ELITE_HEALTH_MULTIPLIER: 4,
   BOSS_HEALTH_MULTIPLIER: 12,
   ELITE_SCALE: 1.35,
@@ -158,6 +159,22 @@ export const ENEMY_TIER = {
   BOSS_SPEED_MULTIPLIER: 0.65,
   ELITE_COLOR: 0xff9a3b,
   BOSS_COLOR: 0xff2d78,
+};
+
+export const BOSS_ATTACK = {
+  INITIAL_DELAY: 2,
+  COOLDOWN: 3.5,
+  TELEGRAPH_DURATION: 1.2,
+  ZONE_WIDTH: 2.4,
+  DAMAGE: 2,
+};
+
+export const ENEMY_SPRITE_SHEET = {
+  COLS: 4,
+  ROWS: 3,
+  WALK_ROW: 0,
+  WALK_FPS: 8,
+  PHASE_RANDOM_RANGE: 10,
 };
 
 export const OVERFLOW = {
@@ -171,6 +188,44 @@ export const OVERFLOW = {
 export const VOID_FINALE = {
   CYCLE_DURATION: 10,
 };
+
+export const CURRENCY = {
+  NORMAL_KILL: 1,
+  ELITE_KILL: 5,
+  BOSS_KILL: 20,
+  WAVE_CLEAR_BASE: 10,
+  WAVE_CLEAR_PER_WAVE: 2,
+  SHOP_CHANCE: 0.35,
+};
+
+export const CARD_TUNING = {
+  AWAKENING_CHANCE: 0.15,
+  SHOP_OFFER_COUNT: 4,
+  WAVE_OFFER_COUNT: 3,
+  TIER_PRICES: [0, 15, 40, 90],
+  FUSE_COUNT: 3,
+};
+
+export const FROZEN_CURRENCY_BREAKPOINTS = [100, 400, 1200, 3000];
+export const FROZEN_CURRENCY_BUFF_STEP = [0.03, 0.07, 0.12, 0.2];
+
+export const ARCHIVE_REWARD = {
+  ENEMY_NORMAL: 5,
+  ENEMY_ELITE: 15,
+  ENEMY_BOSS: 50,
+  WEAPON: 30,
+  BUFF: 40,
+  LORE: 25,
+};
+
+export const ARCHIVE_KILL_THRESHOLDS = {
+  normal: 100,
+  elite: 50,
+  boss: 10,
+};
+
+export const STORY_COMPLETION_REWARD = 150;
+
 
 export const CRATE = {
   POOL_SIZE: 8,

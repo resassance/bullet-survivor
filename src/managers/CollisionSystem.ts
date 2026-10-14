@@ -25,7 +25,7 @@ export class CollisionSystem {
   ): void {
     const bullets = this.bulletManager.slots;
     const enemies = this.enemyManager.slots;
-    const poisonStacks = this.bulletManager.poisonStacks;
+    const poisonStacks = this.bulletManager.poisonStacks + this.bulletManager.cardPoisonStacks;
 
     for (const bullet of bullets) {
       if (!bullet.alive) continue;

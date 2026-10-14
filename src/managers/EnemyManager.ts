@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ENEMY, ARENA, ENEMY_TIER } from '../utils/constants';
-import { createSilhouettePlaceholder } from '../utils/placeholderTexture';
+import { ENEMY, ARENA, ENEMY_TIER, ENEMY_SPRITE_SHEET, BOSS_ATTACK } from '../utils/constants';
+import { createSilhouetteSpriteSheet } from '../utils/placeholderTexture';
+import { tryLoadTexture } from '../utils/textureLoader';
 
 export type EnemyTier = 'normal' | 'elite' | 'boss';
 
@@ -24,6 +25,7 @@ export interface EnemySlot {
   collisionRadius: number;
   renderScale: number;
   color: THREE.Color;
+  attackTimer: number;
 }
 
 export class EnemyManager {
@@ -32,18 +34,27 @@ export class EnemyManager {
 
   private dummy = new THREE.Object3D();
   private elapsedTime = 0;
+  private material: THREE.MeshBasicMaterial;
+  private frameOffsetY: number;
+  private speedMultiplier = 1;
+  private highlightEnabled = false;
+  private highlightColor = new THREE.Color(0xffe066);
+  private scratchColor = new THREE.Color();
 
   constructor() {
     const geometry = new THREE.PlaneGeometry(ENEMY.WIDTH, ENEMY.HEIGHT);
     geometry.translate(0, ENEMY.HEIGHT / 2, 0);
 
-    const texture = createSilhouettePlaceholder({
-      glowColor: '#ff2d55',
-      fillColor: '#12060a',
-      label: 'ETHEREAL',
-    });
+    const texture = createSilhouetteSpriteSheet(
+      { glowColor: '#ff2d55', fillColor: '#12060a' },
+      ENEMY_SPRITE_SHEET.COLS,
+      ENEMY_SPRITE_SHEET.ROWS
+    );
+    this.frameOffsetY =
+      (ENEMY_SPRITE_SHEET.ROWS - 1 - ENEMY_SPRITE_SHEET.WALK_ROW) / ENEMY_SPRITE_SHEET.ROWS;
+    this.configureSpriteSheetTexture(texture);
 
-    const material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
       alphaTest: 0.1,
@@ -51,7 +62,13 @@ export class EnemyManager {
       vertexColors: true,
     });
 
-    this.mesh = new THREE.InstancedMesh(geometry, material, ENEMY.POOL_SIZE);
+    tryLoadTexture('/assets/sprites/enemy/ethereal.png', (loadedTexture) => {
+      this.configureSpriteSheetTexture(loadedTexture);
+      this.material.map = loadedTexture;
+      this.material.needsUpdate = true;
+    });
+
+    this.mesh = new THREE.InstancedMesh(geometry, this.material, ENEMY.POOL_SIZE);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
@@ -77,21 +94,56 @@ export class EnemyManager {
         collisionRadius: ENEMY.COLLISION_RADIUS,
         renderScale: 1,
         color: new THREE.Color(0xffffff),
+        attackTimer: 0,
       });
     }
+  }
+
+  private configureSpriteSheetTexture(texture: THREE.Texture): void {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1 / ENEMY_SPRITE_SHEET.COLS, 1 / ENEMY_SPRITE_SHEET.ROWS);
+    texture.offset.set(0, this.frameOffsetY);
   }
 
   public update(
     delta: number,
     camera: THREE.Camera,
     onPoisonKill: (x: number, y: number, z: number, tier: EnemyTier) => void,
-    onBreach: () => void
+    onBreach: (tier: EnemyTier) => void,
+    onBossAttackReady: (x: number, z: number) => void
   ): void {
     this.elapsedTime += delta;
+    this.updateWalkFrame();
     this.moveEnemies(delta, onBreach);
+    this.updateBossAttacks(delta, onBossAttackReady);
     this.processPoison(delta, onPoisonKill);
     this.decayHitFlash(delta);
     this.syncInstances(camera);
+  }
+
+  private updateWalkFrame(): void {
+    const frameIndex = Math.floor(this.elapsedTime * ENEMY_SPRITE_SHEET.WALK_FPS);
+    const col = frameIndex % ENEMY_SPRITE_SHEET.COLS;
+    const texture = this.material.map;
+    if (texture) {
+      texture.offset.x = col / ENEMY_SPRITE_SHEET.COLS;
+    }
+  }
+
+  private updateBossAttacks(
+    delta: number,
+    onBossAttackReady: (x: number, z: number) => void
+  ): void {
+    for (const slot of this.slots) {
+      if (!slot.alive || slot.tier !== 'boss') continue;
+
+      slot.attackTimer -= delta;
+      if (slot.attackTimer <= 0) {
+        slot.attackTimer = BOSS_ATTACK.COOLDOWN;
+        onBossAttackReady(slot.x, slot.z);
+      }
+    }
   }
 
   public spawnBatch(count: number, tiers?: readonly EnemyTier[]): void {
@@ -193,6 +245,7 @@ export class EnemyManager {
       ENEMY.WOBBLE_AMPLITUDE_MIN,
       ENEMY.WOBBLE_AMPLITUDE_MAX
     );
+    slot.attackTimer = tier === 'boss' ? BOSS_ATTACK.INITIAL_DELAY : 0;
 
     slot.poisonDamagePerTick = 0;
     slot.poisonTicksRemaining = 0;
@@ -208,11 +261,19 @@ export class EnemyManager {
     return null;
   }
 
-  private moveEnemies(delta: number, onBreach: () => void): void {
+  public setSpeedMultiplier(multiplier: number): void {
+    this.speedMultiplier = Math.max(0, multiplier);
+  }
+
+  public setHighlightEnabled(enabled: boolean): void {
+    this.highlightEnabled = enabled;
+  }
+
+  private moveEnemies(delta: number, onBreach: (tier: EnemyTier) => void): void {
     for (const slot of this.slots) {
       if (!slot.alive) continue;
 
-      slot.z += slot.speed * delta;
+      slot.z += slot.speed * this.speedMultiplier * delta;
 
       const wobble =
         Math.sin(this.elapsedTime * slot.wobbleFrequency + slot.wobblePhase) *
@@ -220,8 +281,9 @@ export class EnemyManager {
       slot.x = slot.baseX + wobble;
 
       if (slot.z > ENEMY.BREACH_Z) {
+        const tier = slot.tier;
         slot.alive = false;
-        onBreach();
+        onBreach(tier);
       }
     }
   }
@@ -278,7 +340,10 @@ export class EnemyManager {
       this.dummy.updateMatrix();
 
       this.mesh.setMatrixAt(renderIndex, this.dummy.matrix);
-      this.mesh.setColorAt(renderIndex, slot.color);
+      const renderColor = this.highlightEnabled
+        ? this.scratchColor.copy(slot.color).lerp(this.highlightColor, 0.5)
+        : slot.color;
+      this.mesh.setColorAt(renderIndex, renderColor);
       renderIndex++;
     }
     this.mesh.count = renderIndex;

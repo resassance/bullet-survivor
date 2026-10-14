@@ -28,3 +28,15 @@ export function specialStationUnlockStage(): number {
 export function isSpecialStationUnlocked(stage: number): boolean {
   return stage >= specialStationUnlockStage();
 }
+
+export function bestUnlockedWeaponId(stage: number): string {
+  let bestId = 'standard';
+  let bestStage = -1;
+  for (const [weaponId, unlockStage] of Object.entries(WEAPON_UNLOCK_STAGE)) {
+    if (unlockStage <= stage && unlockStage > bestStage) {
+      bestId = weaponId;
+      bestStage = unlockStage;
+    }
+  }
+  return bestId;
+}

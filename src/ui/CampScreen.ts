@@ -27,10 +27,13 @@ export class CampScreen {
   private panelBody: HTMLDivElement;
   private infoStage: HTMLDivElement;
   private infoLoadout: HTMLDivElement;
+  private infoCurrency: HTMLDivElement;
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
   private selectedWeaponId = 'standard';
   private currentStage = 1;
   private storyCompleted = false;
+  private weaponAutoManaged = false;
+  private frozenCurrency = 0;
   private callbacks: CampScreenCallbacks;
 
   constructor(container: HTMLElement, callbacks: CampScreenCallbacks) {
@@ -45,6 +48,7 @@ export class CampScreen {
           <div class="camp-info-row">
             <span class="camp-info-stage"></span>
             <span class="camp-info-loadout"></span>
+            <span class="camp-info-currency"></span>
           </div>
         </div>
       </div>
@@ -66,6 +70,7 @@ export class CampScreen {
     this.panelBody = this.element.querySelector('.camp-panel-body') as HTMLDivElement;
     this.infoStage = this.element.querySelector('.camp-info-stage') as HTMLDivElement;
     this.infoLoadout = this.element.querySelector('.camp-info-loadout') as HTMLDivElement;
+    this.infoCurrency = this.element.querySelector('.camp-info-currency') as HTMLDivElement;
 
     const closeButton = this.element.querySelector('.camp-panel-close') as HTMLButtonElement;
     closeButton.addEventListener('click', () => this.closePanel());
@@ -125,6 +130,14 @@ export class CampScreen {
   }
 
   private renderWeaponPanel(): void {
+    if (this.weaponAutoManaged) {
+      const intro = document.createElement('p');
+      intro.className = 'camp-special-intro';
+      intro.textContent =
+        'В сюжетном режиме оружие подбирается автоматически по мере разблокировки. Ручной выбор доступен в бесконечном режиме.';
+      this.panelBody.appendChild(intro);
+    }
+
     const row = document.createElement('div');
     row.className = 'camp-weapon-row';
     this.weaponButtons.clear();
@@ -136,15 +149,17 @@ export class CampScreen {
       button.className = 'camp-weapon-button';
       button.classList.toggle('camp-weapon-button--active', weapon.id === this.selectedWeaponId);
       button.classList.toggle('camp-weapon-button--locked', !unlocked);
-      button.disabled = !unlocked;
+      button.disabled = !unlocked || this.weaponAutoManaged;
 
       if (unlocked) {
         button.textContent = weapon.name;
-        button.addEventListener('click', () => {
-          this.selectedWeaponId = weapon.id;
-          this.callbacks.onWeaponSelected(weapon.id);
-          this.highlightWeapon(weapon.id);
-        });
+        if (!this.weaponAutoManaged) {
+          button.addEventListener('click', () => {
+            this.selectedWeaponId = weapon.id;
+            this.callbacks.onWeaponSelected(weapon.id);
+            this.highlightWeapon(weapon.id);
+          });
+        }
       } else {
         const unlockStage = WEAPON_UNLOCK_STAGE[weapon.id];
         button.innerHTML = `${weapon.name}<span class="camp-lock-hint">открыто на ${unlockStage} ур.</span>`;
@@ -230,6 +245,7 @@ export class CampScreen {
       : `УРОВЕНЬ ${this.currentStage}/${STORY_PROGRESSION.TOTAL_STAGES}`;
     const weaponName = WEAPONS.find((weapon) => weapon.id === this.selectedWeaponId)?.name ?? '';
     this.infoLoadout.textContent = weaponName;
+    this.infoCurrency.textContent = `◆ ${this.frozenCurrency}`;
   }
 
   private highlightWeapon(weaponId: string): void {
@@ -244,10 +260,18 @@ export class CampScreen {
     this.callbacks.onPanelClosed();
   }
 
-  public show(selectedWeaponId: string, currentStage: number, storyCompleted = false): void {
+  public show(
+    selectedWeaponId: string,
+    currentStage: number,
+    storyCompleted = false,
+    weaponAutoManaged = false,
+    frozenCurrency = 0
+  ): void {
     this.selectedWeaponId = selectedWeaponId;
     this.currentStage = currentStage;
     this.storyCompleted = storyCompleted;
+    this.weaponAutoManaged = weaponAutoManaged;
+    this.frozenCurrency = frozenCurrency;
     this.updateInfoRow();
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');

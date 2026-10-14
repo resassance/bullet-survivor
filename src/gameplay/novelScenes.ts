@@ -7,13 +7,30 @@ export type NovelBackgroundId =
 export interface NovelBackgroundDef {
   id: NovelBackgroundId;
   fallbackGradient: [string, string];
+  imagePath: string;
 }
 
 export const NOVEL_BACKGROUNDS: Record<NovelBackgroundId, NovelBackgroundDef> = {
-  camp_perimeter_night: { id: 'camp_perimeter_night', fallbackGradient: ['#120b08', '#040308'] },
-  ruined_highway: { id: 'ruined_highway', fallbackGradient: ['#1a1430', '#050308'] },
-  bunker_corridor: { id: 'bunker_corridor', fallbackGradient: ['#0d1420', '#03040a'] },
-  city_outskirts_dusk: { id: 'city_outskirts_dusk', fallbackGradient: ['#2a1230', '#08040c'] },
+  camp_perimeter_night: {
+    id: 'camp_perimeter_night',
+    fallbackGradient: ['#120b08', '#040308'],
+    imagePath: '/assets/novel/backgrounds/camp_perimeter_night.jpg',
+  },
+  ruined_highway: {
+    id: 'ruined_highway',
+    fallbackGradient: ['#1a1430', '#050308'],
+    imagePath: '/assets/novel/backgrounds/ruined_highway.jpg',
+  },
+  bunker_corridor: {
+    id: 'bunker_corridor',
+    fallbackGradient: ['#0d1420', '#03040a'],
+    imagePath: '/assets/novel/backgrounds/bunker_corridor.jpg',
+  },
+  city_outskirts_dusk: {
+    id: 'city_outskirts_dusk',
+    fallbackGradient: ['#2a1230', '#08040c'],
+    imagePath: '/assets/novel/backgrounds/city_outskirts_dusk.jpg',
+  },
 };
 
 export type NovelCharacterId = 'yuki' | 'ren';
@@ -22,11 +39,22 @@ export interface NovelCharacterDef {
   id: NovelCharacterId;
   displayName: string;
   color: string;
+  imagePath: string;
 }
 
 export const NOVEL_CHARACTERS: Record<NovelCharacterId, NovelCharacterDef> = {
-  yuki: { id: 'yuki', displayName: 'Юки', color: '#9b7fff' },
-  ren: { id: 'ren', displayName: 'Рен', color: '#3bffb0' },
+  yuki: {
+    id: 'yuki',
+    displayName: 'Юки',
+    color: '#9b7fff',
+    imagePath: '/assets/novel/characters/yuki.png',
+  },
+  ren: {
+    id: 'ren',
+    displayName: 'Рен',
+    color: '#3bffb0',
+    imagePath: '/assets/novel/characters/ren.png',
+  },
 };
 
 export type NovelSlot = 'left' | 'center' | 'right' | 'center-left' | 'center-right';

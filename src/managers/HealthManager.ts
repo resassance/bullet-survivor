@@ -7,6 +7,7 @@ export class HealthManager {
   private invulnerabilityTimer = 0;
   private maxHp: number;
   private regenPerSecond = 0;
+  private cardRegenPerSecond = 0;
 
   constructor(maxHp: number = PLAYER.MAX_HP) {
     this.baseMaxHp = maxHp;
@@ -19,8 +20,11 @@ export class HealthManager {
       this.invulnerabilityTimer -= delta;
     }
 
-    if (!this.isDead && this.regenPerSecond > 0 && this.hp < this.maxHp) {
-      this.hp = Math.min(this.maxHp, this.hp + this.regenPerSecond * delta);
+    if (!this.isDead && this.hp < this.maxHp) {
+      const regen = this.regenPerSecond + this.cardRegenPerSecond;
+      if (regen > 0) {
+        this.hp = Math.min(this.maxHp, this.hp + regen * delta);
+      }
     }
   }
 
@@ -36,6 +40,12 @@ export class HealthManager {
     return true;
   }
 
+  public instaKill(): void {
+    this.hp = 0;
+    this.isDead = true;
+    this.invulnerabilityTimer = PLAYER.INVULNERABILITY_DURATION;
+  }
+
   public increaseMaxHp(amount: number): void {
     this.maxHp += amount;
     this.hp = Math.min(this.maxHp, this.hp + amount);
@@ -45,9 +55,20 @@ export class HealthManager {
     this.regenPerSecond += amountPerSecond;
   }
 
+  public setCardRegen(amountPerSecond: number): void {
+    this.cardRegenPerSecond = Math.max(0, amountPerSecond);
+  }
+
+  public healToFull(): void {
+    this.hp = this.maxHp;
+    this.isDead = false;
+    this.invulnerabilityTimer = 0;
+  }
+
   public reset(): void {
     this.maxHp = this.baseMaxHp;
     this.regenPerSecond = 0;
+    this.cardRegenPerSecond = 0;
     this.hp = this.maxHp;
     this.isDead = false;
     this.invulnerabilityTimer = 0;

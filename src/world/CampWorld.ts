@@ -5,6 +5,7 @@ import { createLabelTexture } from '../utils/labelTexture';
 import { createCharacterPoseTexture } from '../utils/characterSprite';
 import { billboardYAxis } from '../utils/billboard';
 import { CAMP_SCENE, PLAYER } from '../utils/constants';
+import { tryLoadTiledTexture } from '../utils/textureLoader';
 
 interface StationVisual {
   definition: CampStationDefinition;
@@ -82,6 +83,13 @@ export class CampWorld {
     const floor = new THREE.Mesh(geometry, material);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -0.02, 4);
+
+    tryLoadTiledTexture('/assets/textures/floor-camp.jpg', 6, 6, (texture) => {
+      material.map = texture;
+      material.color.setHex(0xffffff);
+      material.needsUpdate = true;
+    });
+
     return floor;
   }
 

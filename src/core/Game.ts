@@ -10,6 +10,7 @@ import { Player } from '../entities/Player';
 import { CoverProp } from '../entities/CoverProp';
 import { BulletManager } from '../managers/BulletManager';
 import { EnemyManager } from '../managers/EnemyManager';
+import { BossAttackManager } from '../managers/BossAttackManager';
 import { SupplyCrateManager } from '../managers/SupplyCrateManager';
 import { GemManager } from '../managers/GemManager';
 import { ParticleManager } from '../managers/ParticleManager';
@@ -39,12 +40,32 @@ import { OverflowBar } from '../ui/OverflowBar';
 import { CampHotspotOverlay } from '../ui/CampHotspotOverlay';
 import { CampWorld } from '../world/CampWorld';
 import { AudioManager } from '../managers/AudioManager';
+import { SaveManager, type SaveData, type KillCounts } from '../managers/SaveManager';
+import { CurrencyHUD } from '../ui/CurrencyHUD';
+import { ShopOverlay } from '../ui/ShopOverlay';
+import { WaveRewardOverlay } from '../ui/WaveRewardOverlay';
+import { CardsInventoryOverlay } from '../ui/CardsInventoryOverlay';
+import { AwakeningOverlay } from '../ui/AwakeningOverlay';
+import { CardsButton } from '../ui/CardsButton';
+import { RewardPopup } from '../ui/RewardPopup';
+import { CardManager } from '../managers/CardManager';
+import {
+  type BuffCardDef,
+  type BuffCardInstance,
+  type BuffType,
+  type CardTier,
+  instantiateCard,
+  rollWaveOffers,
+  rollShopOffers,
+} from '../gameplay/buffCards';
+
+
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
 import { WEAPONS } from '../gameplay/weapons';
 import { SPECIAL_WEAPONS, type SpecialWeaponId } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
-import { isSpecialStationUnlocked, isWeaponUnlocked } from '../gameplay/progression';
+import { isSpecialStationUnlocked, isWeaponUnlocked, bestUnlockedWeaponId } from '../gameplay/progression';
 import {
   pickRandomSubtitle,
   pickIntroDialogue,
@@ -68,6 +89,14 @@ import {
   ENEMY_TIER,
   OVERFLOW,
   VOID_FINALE,
+  BOSS_ATTACK,
+  CURRENCY,
+  CARD_TUNING,
+  ARCHIVE_REWARD,
+  ARCHIVE_KILL_THRESHOLDS,
+  STORY_COMPLETION_REWARD,
+  FROZEN_CURRENCY_BREAKPOINTS,
+  FROZEN_CURRENCY_BUFF_STEP,
 } from '../utils/constants';
 
 type GameMode = 'story' | 'endless';
@@ -82,6 +111,7 @@ export class Game {
   private coverProp: CoverProp;
   private bulletManager: BulletManager;
   private enemyManager: EnemyManager;
+  private bossAttackManager: BossAttackManager;
   private crateManager: SupplyCrateManager;
   private gemManager: GemManager;
   private particleManager: ParticleManager;
@@ -110,6 +140,21 @@ export class Game {
   private battleWorld!: THREE.Group;
   private campHotspotOverlay: CampHotspotOverlay;
   private audioManager: AudioManager;
+  private saveManager: SaveManager;
+  private currencyHud: CurrencyHUD;
+  private shopOverlay: ShopOverlay;
+  private waveRewardOverlay: WaveRewardOverlay;
+  private cardsInventoryOverlay: CardsInventoryOverlay;
+  private awakeningOverlay: AwakeningOverlay;
+  private cardsButton: CardsButton;
+  private rewardPopup: RewardPopup;
+  private cardManager: CardManager;
+  private runCurrency = 0;
+  private frozenCurrency = 0;
+  private currentShopOffers: BuffCardDef[] = [];
+  private unlockedArchiveIds: Set<string> = new Set();
+  private killCounts: KillCounts = { normal: 0, elite: 0, boss: 0 };
+  private endlessIntroShown = false;
   private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
@@ -130,6 +175,7 @@ export class Game {
   private overflowCharge = 0;
   private endlessEliteSpawnedThisWave = false;
   private endlessBossSpawnedThisWave = false;
+  private storyBossSpawnedThisStage = false;
   private voidFinaleActive = false;
   private voidCycleIndex = 0;
 
@@ -159,6 +205,7 @@ export class Game {
     this.coverProp = new CoverProp();
     this.bulletManager = new BulletManager();
     this.enemyManager = new EnemyManager();
+    this.bossAttackManager = new BossAttackManager();
     this.crateManager = new SupplyCrateManager();
     this.gemManager = new GemManager();
     this.particleManager = new ParticleManager();
@@ -178,6 +225,26 @@ export class Game {
     this.ammoIndicator = new AmmoIndicator(container);
     this.stageIndicator = new StageIndicator(container);
     this.weaponIndicator = new WeaponIndicator(container);
+    this.currencyHud = new CurrencyHUD(container);
+    this.currencyHud.setVisible(false);
+    this.cardManager = new CardManager();
+    this.shopOverlay = new ShopOverlay(container, {
+      onPurchase: (def, offerIndex) => this.handleShopPurchase(def, offerIndex),
+      onContinue: () => this.closeShop(),
+    });
+    this.waveRewardOverlay = new WaveRewardOverlay(container, (def) =>
+      this.handleWaveRewardPick(def)
+    );
+    this.cardsInventoryOverlay = new CardsInventoryOverlay(container, {
+      onFuse: (type, tier) => this.handleCardFuse(type, tier),
+      onClose: () => this.closeCardsInventory(),
+    });
+    this.awakeningOverlay = new AwakeningOverlay(container, {
+      onAwaken: (a, b) => this.handleAwaken(a, b),
+      onClose: () => this.closeAwakening(),
+    });
+    this.cardsButton = new CardsButton(container, () => this.openCardsInventory());
+    this.cardsButton.setVisible(false);
     this.gameOverScreen = new GameOverScreen(container, () => this.restart());
     this.levelUpOverlay = new LevelUpOverlay(container, (skillId) =>
       this.handleSkillPicked(skillId)
@@ -207,12 +274,17 @@ export class Game {
       },
     });
     this.campScreen = new CampScreen(container, {
-      onWeaponSelected: (weaponId) => this.bulletManager.switchWeapon(weaponId),
+      onWeaponSelected: (weaponId) => {
+        this.bulletManager.switchWeapon(weaponId);
+        this.tryUnlockArchive(`weapon_${weaponId}`, ARCHIVE_REWARD.WEAPON);
+        this.persist();
+      },
       onArchiveOpen: () => this.openArchive(),
       onPanelClosed: () => this.returnToCampOverview(),
       isAudioMuted: () => this.audioManager.isMuted(),
       onToggleAudioMuted: () => {
         this.audioManager.setMuted(!this.audioManager.isMuted());
+        this.persist();
         return this.audioManager.isMuted();
       },
     });
@@ -235,7 +307,17 @@ export class Game {
         }
       },
       onSkipStage: () => this.debugSkipStage(),
+      onStageBack: () => this.debugJumpStage(-1),
+      onStageForward: () => this.debugJumpStage(1),
     });
+
+    this.rewardPopup = new RewardPopup(container);
+
+    this.saveManager = new SaveManager();
+    const savedData = this.saveManager.load();
+    if (savedData) {
+      this.applySaveData(savedData);
+    }
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
@@ -268,6 +350,7 @@ export class Game {
     this.battleWorld.add(this.coverProp.group);
     this.battleWorld.add(this.bulletManager.mesh);
     this.battleWorld.add(this.enemyManager.mesh);
+    this.battleWorld.add(this.bossAttackManager.group);
     this.battleWorld.add(this.crateManager.group);
     this.battleWorld.add(this.gemManager.mesh);
     this.battleWorld.add(this.particleManager.mesh);
@@ -340,8 +423,11 @@ export class Game {
       delta,
       this.cameraManager.camera,
       (x, y, z, tier) => this.killEnemy(x, y, z, tier),
-      () => this.handlePlayerHit()
+      (tier) => this.handleBreach(tier),
+      (x) => this.bossAttackManager.trigger(x)
     );
+
+    this.bossAttackManager.update(delta, (lockedX) => this.resolveBossBeam(lockedX));
 
     this.specialWeaponManager.update(
       delta,
@@ -353,11 +439,9 @@ export class Game {
 
     const spawnCount = this.activeStageManager.update(delta, this.enemyManager.aliveCount);
     if (spawnCount > 0) {
-      if (this.mode === 'endless') {
-        this.enemyManager.spawnBatch(spawnCount, this.planEndlessTiers(spawnCount));
-      } else {
-        this.enemyManager.spawnBatch(spawnCount);
-      }
+      const tiers =
+        this.mode === 'endless' ? this.planEndlessTiers(spawnCount) : this.planStoryTiers(spawnCount);
+      this.enemyManager.spawnBatch(spawnCount, tiers);
     }
     this.stageIndicator.update(
       this.activeStageManager.currentStage,
@@ -410,16 +494,39 @@ export class Game {
 
   private planEndlessTiers(count: number): EnemyTier[] {
     const stage = this.endlessStageManager.currentStage;
+    const spawnedSoFar = this.endlessStageManager.spawnedCount;
+    const totalCount = this.endlessStageManager.totalCount;
     const tiers: EnemyTier[] = new Array(count).fill('normal');
-    const isBossWave = stage % ENEMY_TIER.BOSS_WAVE_INTERVAL === 0;
+
+    const isBossWave = stage % ENEMY_TIER.ENDLESS_BOSS_WAVE_INTERVAL === 0;
     const isEliteWave = !isBossWave && stage % ENEMY_TIER.ELITE_WAVE_INTERVAL === 0;
 
     if (isBossWave && !this.endlessBossSpawnedThisWave) {
-      tiers[0] = 'boss';
-      this.endlessBossSpawnedThisWave = true;
+      const lastIndex = totalCount - spawnedSoFar - 1;
+      if (lastIndex >= 0 && lastIndex < count) {
+        tiers[lastIndex] = 'boss';
+        this.endlessBossSpawnedThisWave = true;
+      }
     } else if (isEliteWave && !this.endlessEliteSpawnedThisWave) {
       tiers[0] = 'elite';
       this.endlessEliteSpawnedThisWave = true;
+    }
+
+    return tiers;
+  }
+
+  private planStoryTiers(count: number): EnemyTier[] {
+    const stage = this.stageManager.currentStage;
+    const spawnedSoFar = this.stageManager.spawnedCount;
+    const totalCount = this.stageManager.totalCount;
+    const tiers: EnemyTier[] = new Array(count).fill('normal');
+
+    if (stage >= ENEMY_TIER.STORY_BOSS_FROM_STAGE && !this.storyBossSpawnedThisStage) {
+      const lastIndex = totalCount - spawnedSoFar - 1;
+      if (lastIndex >= 0 && lastIndex < count) {
+        tiers[lastIndex] = 'boss';
+        this.storyBossSpawnedThisStage = true;
+      }
     }
 
     return tiers;
@@ -457,9 +564,11 @@ export class Game {
   }
 
   private killEnemy(x: number, y: number, z: number, tier: EnemyTier, fromExplosion = false): void {
+    this.trackEnemyKill(tier);
     if (this.mode === 'endless') {
       this.gemManager.spawn(x, z);
       this.addOverflowCharge(tier);
+      this.addCurrency(this.currencyForTier(tier));
     }
     this.particleManager.burst(x, y, z);
 
@@ -485,12 +594,164 @@ export class Game {
           ? OVERFLOW.ELITE_KILL
           : OVERFLOW.NORMAL_KILL;
 
-    this.overflowCharge = Math.min(OVERFLOW.MAX, this.overflowCharge + amount);
+    this.overflowCharge = Math.min(
+      OVERFLOW.MAX,
+      this.overflowCharge + amount * (1 + this.frozenBuffPercent())
+    );
     this.overflowBar.update(this.overflowCharge, OVERFLOW.MAX);
 
     if (this.overflowCharge >= OVERFLOW.MAX) {
       this.triggerRandomSpecial();
     }
+  }
+
+  private frozenBuffPercent(): number {
+    let total = 0;
+    for (let i = 0; i < FROZEN_CURRENCY_BREAKPOINTS.length; i++) {
+      if (this.frozenCurrency >= FROZEN_CURRENCY_BREAKPOINTS[i]) total += FROZEN_CURRENCY_BUFF_STEP[i];
+    }
+    return total;
+  }
+
+  private tryUnlockArchive(id: string, reward: number): void {
+    if (this.unlockedArchiveIds.has(id)) return;
+    this.unlockedArchiveIds.add(id);
+    this.frozenCurrency += reward;
+    this.persist();
+  }
+
+  private trackEnemyKill(tier: EnemyTier): void {
+    this.killCounts[tier] += 1;
+    if (this.killCounts[tier] === ARCHIVE_KILL_THRESHOLDS[tier]) {
+      const reward =
+        tier === 'boss'
+          ? ARCHIVE_REWARD.ENEMY_BOSS
+          : tier === 'elite'
+            ? ARCHIVE_REWARD.ENEMY_ELITE
+            : ARCHIVE_REWARD.ENEMY_NORMAL;
+      this.tryUnlockArchive(`enemy_${tier}`, reward);
+    }
+  }
+
+  private discoverCard(card: BuffCardInstance): void {
+    if (card.type === 'hybrid') return;
+    this.tryUnlockArchive(`buff_${card.type}_${card.tier}`, ARCHIVE_REWARD.BUFF);
+  }
+
+  private currencyForTier(tier: EnemyTier): number {
+    return tier === 'boss'
+      ? CURRENCY.BOSS_KILL
+      : tier === 'elite'
+        ? CURRENCY.ELITE_KILL
+        : CURRENCY.NORMAL_KILL;
+  }
+
+  private addCurrency(amount: number): void {
+    const bonus = 1 + this.cardManager.totalEffect('fragments_gain') / 100;
+    this.runCurrency += Math.round(amount * bonus);
+    this.currencyHud.update(this.runCurrency);
+  }
+
+  private refreshCardEffects(): void {
+    this.enemyManager.setSpeedMultiplier(1 - this.cardManager.totalEffect('enemy_slow') / 100);
+    this.enemyManager.setHighlightEnabled(this.cardManager.hasEffect('enemy_outline'));
+    this.healthManager.setCardRegen(
+      (this.healthManager.max * this.cardManager.totalEffect('hp_regen')) / 100
+    );
+    const poisonPercent = this.cardManager.totalEffect('poison_shot');
+    this.bulletManager.setCardPoisonStacks(Math.round(poisonPercent / 0.5));
+  }
+
+  private openWaveReward(): void {
+    this.isPaused = true;
+    const wave = this.endlessStageManager.currentStage;
+    const offers = rollWaveOffers(wave, CARD_TUNING.WAVE_OFFER_COUNT);
+    this.waveRewardOverlay.show(offers);
+  }
+
+  private handleWaveRewardPick(def: BuffCardDef): void {
+    const card = instantiateCard(def);
+    this.cardManager.addCard(card);
+    this.discoverCard(card);
+    this.refreshCardEffects();
+    this.waveRewardOverlay.hide();
+    this.rollSpecialEncounter();
+  }
+
+  private rollSpecialEncounter(): void {
+    const canAwaken = this.cardManager.tierThreeCards().length >= 2;
+    const roll = Math.random();
+    if (canAwaken && roll < CARD_TUNING.AWAKENING_CHANCE) {
+      this.openAwakening();
+      return;
+    }
+    if (roll < CARD_TUNING.AWAKENING_CHANCE + CURRENCY.SHOP_CHANCE) {
+      this.openShop();
+      return;
+    }
+    this.isPaused = false;
+  }
+
+  private openShop(): void {
+    this.isPaused = true;
+    this.currentShopOffers = rollShopOffers(CARD_TUNING.SHOP_OFFER_COUNT);
+    this.shopOverlay.show(this.currentShopOffers, this.runCurrency);
+  }
+
+  private handleShopPurchase(def: BuffCardDef, offerIndex: number): void {
+    const price = CARD_TUNING.TIER_PRICES[def.tier] ?? 0;
+    if (this.runCurrency < price) return;
+    this.runCurrency -= price;
+    const card = instantiateCard(def);
+    this.cardManager.addCard(card);
+    this.discoverCard(card);
+    this.refreshCardEffects();
+    this.currencyHud.update(this.runCurrency);
+    this.shopOverlay.markPurchased(offerIndex);
+    this.shopOverlay.setBalance(this.runCurrency);
+  }
+
+  private closeShop(): void {
+    this.shopOverlay.hide();
+    this.isPaused = false;
+  }
+
+  private openAwakening(): void {
+    this.isPaused = true;
+    this.awakeningOverlay.show(this.cardManager.tierThreeCards());
+  }
+
+  private handleAwaken(instanceIdA: string, instanceIdB: string): void {
+    const created = this.cardManager.awaken(instanceIdA, instanceIdB);
+    if (created) {
+      this.discoverCard(created);
+      this.refreshCardEffects();
+    }
+    this.closeAwakening();
+  }
+
+  private closeAwakening(): void {
+    this.awakeningOverlay.hide();
+    this.isPaused = false;
+  }
+
+  private openCardsInventory(): void {
+    this.isPaused = true;
+    this.cardsInventoryOverlay.show(this.cardManager.cards, this.cardManager.fusionGroups());
+  }
+
+  private handleCardFuse(type: BuffType, tier: CardTier): void {
+    const created = this.cardManager.fuse(type, tier);
+    if (created) {
+      this.discoverCard(created);
+      this.refreshCardEffects();
+    }
+    this.cardsInventoryOverlay.show(this.cardManager.cards, this.cardManager.fusionGroups());
+  }
+
+  private closeCardsInventory(): void {
+    this.cardsInventoryOverlay.hide();
+    this.isPaused = false;
   }
 
   private triggerRandomSpecial(): void {
@@ -499,6 +760,7 @@ export class Game {
     this.overflowCharge = 0;
     this.overflowBar.update(0, OVERFLOW.MAX);
     this.overflowBar.setActiveLabel(pick.name);
+    this.tryUnlockArchive(`weapon_special_${pick.id}`, ARCHIVE_REWARD.WEAPON);
   }
 
   private handleGemCollected(value: number): void {
@@ -595,17 +857,42 @@ export class Game {
     }
   }
 
-  private handlePlayerHit(): void {
-    const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
-    if (!damageApplied) return;
-
+  private applyPlayerDamageFeedback(shakeMultiplier = 1): void {
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.hitFlash.trigger();
-    this.cameraManager.triggerShake(CAMERA_SHAKE.HIT_MAGNITUDE, CAMERA_SHAKE.HIT_DURATION);
+    this.cameraManager.triggerShake(
+      CAMERA_SHAKE.HIT_MAGNITUDE * shakeMultiplier,
+      CAMERA_SHAKE.HIT_DURATION
+    );
 
     if (this.healthManager.dead) {
       this.handleGameOver();
     }
+  }
+
+  private handlePlayerHit(): void {
+    const damageApplied = this.healthManager.takeDamage(PLAYER.CONTACT_DAMAGE);
+    if (!damageApplied) return;
+    this.applyPlayerDamageFeedback();
+  }
+
+  private handleBreach(tier: EnemyTier): void {
+    if (tier === 'boss') {
+      this.healthManager.instaKill();
+      this.applyPlayerDamageFeedback(1.8);
+      return;
+    }
+    this.handlePlayerHit();
+  }
+
+  private resolveBossBeam(lockedX: number): void {
+    const dx = Math.abs(this.player.position.x - lockedX);
+    if (dx > BOSS_ATTACK.ZONE_WIDTH / 2) return;
+
+    const reduction = this.cardManager.totalEffect('boss_dmg_reduction') / 100;
+    const damageApplied = this.healthManager.takeDamage(BOSS_ATTACK.DAMAGE * (1 - reduction));
+    if (!damageApplied) return;
+    this.applyPlayerDamageFeedback(1.4);
   }
 
   private handleGameOver(): void {
@@ -615,11 +902,15 @@ export class Game {
       const wave = this.endlessStageManager.currentStage;
       const isRecord = wave > this.endlessBestWave;
       this.endlessBestWave = Math.max(this.endlessBestWave, wave);
+      const frozenGained = this.runCurrency;
+      this.frozenCurrency += frozenGained;
+      this.runCurrency = 0;
+      this.persist();
       this.gameOverScreen.show({
         title: 'забег окончен',
         subtitle: isRecord
-          ? `Волна ${wave} · новый рекорд!`
-          : `Волна ${wave} · рекорд ${this.endlessBestWave}`,
+          ? `Волна ${wave} · новый рекорд! +${frozenGained} застывших кристаллов`
+          : `Волна ${wave} · рекорд ${this.endlessBestWave} · +${frozenGained} застывших кристаллов`,
         buttonLabel: 'в лагерь',
         onAction: () => this.endEndlessRun(),
       });
@@ -631,9 +922,13 @@ export class Game {
 
   private handleStageCleared(): void {
     if (this.mode === 'endless') {
+      const clearedWave = this.endlessStageManager.currentStage;
       this.endlessStageManager.advanceStage();
       this.endlessEliteSpawnedThisWave = false;
       this.endlessBossSpawnedThisWave = false;
+      this.resetForLevelTransition();
+      this.addCurrency(CURRENCY.WAVE_CLEAR_BASE + clearedWave * CURRENCY.WAVE_CLEAR_PER_WAVE);
+      this.openWaveReward();
       return;
     }
 
@@ -656,7 +951,12 @@ export class Game {
       }
 
       this.stageManager.advanceStage();
+      this.resetForLevelTransition();
+      this.autoEquipStoryWeapon();
       this.syncStoryAssist();
+      this.storyBossSpawnedThisStage = false;
+      this.bossAttackManager.reset();
+      this.persist();
       this.fadeOverlay.transition(() => {
         const dialogue = pickIntroDialogue(this.stageManager.currentStage);
         this.dialogueScreen.play(dialogue, () => {
@@ -682,8 +982,17 @@ export class Game {
     this.bulletManager.setAssistStrength(AIM_ASSIST.STORY_MAX * (1 - progress));
   }
 
+  private autoEquipStoryWeapon(): void {
+    const weaponId = bestUnlockedWeaponId(this.stageManager.currentStage);
+    if (weaponId !== this.bulletManager.weaponId) {
+      this.bulletManager.switchWeapon(weaponId);
+    }
+    this.tryUnlockArchive(`weapon_${weaponId}`, ARCHIVE_REWARD.WEAPON);
+  }
+
   private finishStory(): void {
     this.storyCompleted = true;
+    this.persist();
     this.fadeOverlay.transition(() => {
       this.creditsScreen.show();
     });
@@ -697,10 +1006,32 @@ export class Game {
   private returnToCampHub(): void {
     this.mode = 'story';
     if (this.storyCompleted) {
+      const showIntro = !this.endlessIntroShown;
+      if (showIntro) {
+        this.frozenCurrency += STORY_COMPLETION_REWARD;
+        this.endlessIntroShown = true;
+        this.persist();
+      }
       this.showCamp('endless', 'бесконечный режим', () => this.launchEndlessRun());
+      if (showIntro) {
+        this.showEndlessIntroReward();
+      }
     } else {
       this.showCamp('story', 'сюжетка', () => this.launchStageFromCamp());
     }
+  }
+
+  private showEndlessIntroReward(): void {
+    this.isPaused = true;
+    this.rewardPopup.show(STORY_COMPLETION_REWARD, () => this.closeEndlessIntroReward());
+  }
+
+  private closeEndlessIntroReward(): void {
+    this.rewardPopup.hide();
+    this.isPaused = false;
+    const station = findCampStation('endless');
+    this.cameraManager.setCampTarget(station.cameraPosition, station.cameraLookAt);
+    this.campWorld.setActiveStation('endless');
   }
 
   private launchStageFromCamp(): void {
@@ -708,7 +1039,10 @@ export class Game {
     this.exitCampWorld();
     this.mode = 'story';
     this.specialWeaponManager.deactivate();
+    this.autoEquipStoryWeapon();
     this.syncStoryAssist();
+    this.storyBossSpawnedThisStage = false;
+    this.bossAttackManager.reset();
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -723,7 +1057,10 @@ export class Game {
     this.endlessStageManager.reset();
     this.healthManager.reset();
     this.bulletManager.resetRunBonuses();
-    this.bulletManager.setAssistStrength(AIM_ASSIST.ENDLESS_BASE);
+    const frozenPercent = this.frozenBuffPercent();
+    this.healthManager.increaseMaxHp(PLAYER.MAX_HP * frozenPercent);
+    this.bulletManager.increaseDamage(WEAPONS[0].damage * frozenPercent);
+    this.bulletManager.setAssistStrength(AIM_ASSIST.ENDLESS_BASE * (1 + frozenPercent));
     this.levelSystem.reset();
     this.enemyManager.reset();
     this.crateManager.reset();
@@ -734,11 +1071,18 @@ export class Game {
     this.overflowCharge = 0;
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
+    this.bossAttackManager.reset();
+    this.runCurrency = 0;
+    this.cardManager.reset();
+    this.refreshCardEffects();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.setVisible(true);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
     this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+    this.currencyHud.setVisible(true);
+    this.currencyHud.update(0);
+    this.cardsButton.setVisible(true);
     this.stageIndicator.update(
       this.endlessStageManager.currentStage,
       this.endlessStageManager.spawnedCount,
@@ -760,8 +1104,17 @@ export class Game {
     this.expBar.setVisible(false);
     this.overflowBar.setVisible(false);
     this.overflowBar.setActiveLabel(null);
+    this.currencyHud.setVisible(false);
+    this.shopOverlay.hide();
+    this.waveRewardOverlay.hide();
+    this.cardsInventoryOverlay.hide();
+    this.awakeningOverlay.hide();
+    this.cardsButton.setVisible(false);
+    this.cardManager.reset();
+    this.refreshCardEffects();
     this.specialWeaponManager.deactivate();
     this.enemyManager.reset();
+    this.bossAttackManager.reset();
     this.crateManager.reset();
     this.gemManager.reset();
     this.particleManager.reset();
@@ -824,7 +1177,9 @@ export class Game {
     this.campScreen.show(
       this.bulletManager.weaponId,
       this.stageManager.currentStage,
-      this.storyCompleted
+      this.storyCompleted,
+      !this.storyCompleted,
+      this.frozenCurrency
     );
   }
 
@@ -898,7 +1253,7 @@ export class Game {
 
   private openArchive(): void {
     this.campScreen.hide();
-    this.archiveScreen.show();
+    this.archiveScreen.show(this.unlockedArchiveIds);
   }
 
   private closeArchive(): void {
@@ -908,7 +1263,9 @@ export class Game {
       this.campScreen.show(
         this.bulletManager.weaponId,
         this.stageManager.currentStage,
-        this.storyCompleted
+        this.storyCompleted,
+        !this.storyCompleted,
+        this.frozenCurrency
       );
     }
   }
@@ -916,6 +1273,70 @@ export class Game {
   private debugSkipStage(): void {
     this.enemyManager.clearAllAlive();
     this.activeStageManager.forceClear();
+  }
+
+  private debugJumpStage(delta: number): void {
+    const manager = this.activeStageManager;
+    const maxStage = this.mode === 'story' ? STORY_PROGRESSION.TOTAL_STAGES : Number.MAX_SAFE_INTEGER;
+    const nextStage = Math.min(maxStage, Math.max(1, manager.currentStage + delta));
+    if (nextStage === manager.currentStage) return;
+
+    this.enemyManager.clearAllAlive();
+    manager.setStage(nextStage);
+    this.bossAttackManager.reset();
+    this.resetForLevelTransition();
+
+    if (this.mode === 'endless') {
+      this.endlessEliteSpawnedThisWave = false;
+      this.endlessBossSpawnedThisWave = false;
+    } else {
+      this.storyBossSpawnedThisStage = false;
+      this.autoEquipStoryWeapon();
+      this.syncStoryAssist();
+    }
+
+    this.stageIndicator.update(
+      manager.currentStage,
+      manager.spawnedCount,
+      manager.totalCount,
+      this.mode === 'endless' ? 'ВОЛНА' : 'УРОВЕНЬ'
+    );
+  }
+
+  private resetForLevelTransition(): void {
+    this.player.resetPosition();
+    this.healthManager.healToFull();
+    this.bulletManager.refillAmmo();
+    this.hpBar.update(this.healthManager.current, this.healthManager.max);
+    this.ammoIndicator.update(this.bulletManager.ammo, this.bulletManager.magazineCapacity, false);
+  }
+
+  private applySaveData(data: SaveData): void {
+    this.storyCompleted = data.storyCompleted;
+    this.stageManager.setStage(Math.min(data.storyStage, STORY_PROGRESSION.TOTAL_STAGES));
+    this.endlessBestWave = Math.max(0, data.endlessBestWave);
+    this.frozenCurrency = Math.max(0, data.frozenCurrency);
+    this.unlockedArchiveIds = new Set(data.unlockedArchiveIds);
+    this.killCounts = { ...data.killCounts };
+    this.endlessIntroShown = data.endlessIntroShown;
+    if (isWeaponUnlocked(data.weaponId, this.stageManager.currentStage)) {
+      this.bulletManager.switchWeapon(data.weaponId);
+    }
+    this.audioManager.setMuted(data.audioMuted);
+  }
+
+  private persist(): void {
+    this.saveManager.save({
+      storyStage: this.stageManager.currentStage,
+      storyCompleted: this.storyCompleted,
+      endlessBestWave: this.endlessBestWave,
+      weaponId: this.bulletManager.weaponId,
+      audioMuted: this.audioManager.isMuted(),
+      frozenCurrency: this.frozenCurrency,
+      unlockedArchiveIds: Array.from(this.unlockedArchiveIds),
+      killCounts: this.killCounts,
+      endlessIntroShown: this.endlessIntroShown,
+    });
   }
 
   private restart(): void {
@@ -928,6 +1349,7 @@ export class Game {
     this.overflowCharge = 0;
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
+    this.storyBossSpawnedThisStage = false;
     this.voidFinaleActive = false;
     this.voidCycleIndex = 0;
 
@@ -935,6 +1357,7 @@ export class Game {
     this.levelSystem.reset();
     this.stageManager.reset();
     this.endlessStageManager.reset();
+    this.bossAttackManager.reset();
 
     this.hpBar.update(this.healthManager.current, this.healthManager.max);
     this.expBar.update(0, this.levelSystem.expToNextLevel, this.levelSystem.currentLevel);
@@ -965,6 +1388,7 @@ export class Game {
     this.isGameOver = false;
 
     this.isPaused = true;
+    this.persist();
     this.returnToCampHub();
   }
 }

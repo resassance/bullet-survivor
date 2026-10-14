@@ -42,6 +42,7 @@ export class BulletManager {
   private reloadSpeedMultiplier = 1;
   private assistStrength = 0;
   public poisonStacks = 0;
+  public cardPoisonStacks = 0;
 
   constructor() {
     const geometry = new THREE.CapsuleGeometry(
@@ -142,7 +143,7 @@ export class BulletManager {
       const vx =
         pelletCount === 1
           ? THREE.MathUtils.randFloatSpread(spread)
-          : (i / (pelletCount - 1) - 0.5) * spread * this.bulletSpeed;
+          : (i / (pelletCount - 1) - 0.5) * spread;
 
       slot.alive = true;
       slot.x = playerPosition.x;
@@ -258,6 +259,10 @@ export class BulletManager {
     );
   }
 
+  public setCardPoisonStacks(amount: number): void {
+    this.cardPoisonStacks = Math.max(0, Math.min(amount, BULLET_LIMITS.MAX_POISON_STACKS));
+  }
+
   public increaseMagazineSize(amount: number): void {
     this.magazineBonus = Math.min(
       this.magazineBonus + amount,
@@ -342,9 +347,24 @@ export class BulletManager {
     this.pierceCount = 0;
     this.damageBonus = 0;
     this.poisonStacks = 0;
+    this.cardPoisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
     this.assistStrength = 0;
+    this.currentAmmo = this.magazineCapacity;
+    this.reloading = false;
+    this.reloadTimer = 0;
+  }
+
+  public refillAmmo(): void {
+    for (const slot of this.slots) {
+      slot.alive = false;
+      slot.pierceRemaining = 0;
+    }
+    this.mesh.count = 0;
+    this.fireCooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
     this.currentAmmo = this.magazineCapacity;
     this.reloading = false;
     this.reloadTimer = 0;
@@ -365,6 +385,7 @@ export class BulletManager {
     this.pierceCount = 0;
     this.damageBonus = 0;
     this.poisonStacks = 0;
+    this.cardPoisonStacks = 0;
     this.magazineBonus = 0;
     this.reloadSpeedMultiplier = 1;
     this.assistStrength = 0;
