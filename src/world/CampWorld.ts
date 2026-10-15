@@ -5,6 +5,7 @@ import { createCampCutout } from './CampCutout';
 import { WEAPONS } from '../gameplay/weapons';
 import { CAMP_SCENE, CAMP_CAMERA } from '../utils/constants';
 import { tryLoadTiledTexture } from '../utils/textureLoader';
+import { ATMOSPHERE, CAMP_LIGHT, fireFlicker } from './lightingProfiles';
 
 interface StationVisual {
   definition: CampStationDefinition;
@@ -58,7 +59,7 @@ export class CampWorld {
     const foreground = createCampCutout(CAMP_LAYOUT.foregroundSupplies.asset, this.buildCrates());
     foreground.position.copy(CAMP_LAYOUT.foregroundSupplies.position);
     this.group.add(foreground);
-    this.group.add(this.buildAmbientLight());
+    this.buildLighting();
     this.fireLight = this.buildCampfire();
     this.embers = this.buildEmbers();
     this.group.add(this.embers);
@@ -80,30 +81,35 @@ export class CampWorld {
   private buildFloor(): THREE.Mesh {
     const geometry = new THREE.PlaneGeometry(60, 50);
     const material = new THREE.MeshStandardMaterial({
-      color: CAMP_SCENE.FLOOR_COLOR,
+      color: 0x343b3c,
       roughness: 0.95,
       metalness: 0,
-      emissive: new THREE.Color(CAMP_SCENE.FLOOR_EMISSIVE),
-      emissiveIntensity: 0.12,
     });
     const floor = new THREE.Mesh(geometry, material);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -0.02, 0);
+    floor.receiveShadow = true;
 
     if (CAMP_GROUND.texturePath) tryLoadTiledTexture(CAMP_GROUND.texturePath, CAMP_GROUND.repeatX, CAMP_GROUND.repeatY, (texture) => {
       material.map = texture;
       material.color.setHex(0xffffff);
-      material.emissiveMap = texture;
-      material.emissive.setHex(0xffffff);
-      material.emissiveIntensity = 0.3;
       material.needsUpdate = true;
     });
 
     return floor;
   }
 
-  private buildAmbientLight(): THREE.AmbientLight {
-    return new THREE.AmbientLight(CAMP_SCENE.AMBIENT_COLOR, CAMP_SCENE.AMBIENT_INTENSITY);
+  private buildLighting(): void {
+    const profile = ATMOSPHERE.camp;
+    this.group.add(new THREE.HemisphereLight(profile.sky, profile.ground, profile.fill));
+    const moon = new THREE.DirectionalLight(profile.moon, profile.moonIntensity);
+    moon.position.set(-6, 12, -8);
+    this.group.add(moon);
+
+    const gate = CAMP_STATIONS.find(station => station.id === 'story')!;
+    const light = new THREE.PointLight(CAMP_LIGHT.gateColor, CAMP_LIGHT.gateIntensity, 10, 2);
+    light.position.set(gate.propPosition.x, 4.6, gate.propPosition.z + 0.8);
+    this.group.add(light);
   }
 
   private buildCampfire(): THREE.PointLight {
@@ -122,24 +128,33 @@ export class CampWorld {
     }
 
     const glowMaterial = new THREE.MeshBasicMaterial({
-      color: CAMP_SCENE.FIRE_LIGHT_COLOR,
+      color: new THREE.Color(3.8, 1.2, 0.18),
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.95,
+      depthWrite: false,
     });
     const glow = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.4, 8), glowMaterial);
     glow.position.y = 0.3;
     fireGroup.add(glow);
 
     const light = new THREE.PointLight(
-      CAMP_SCENE.FIRE_LIGHT_COLOR,
-      CAMP_SCENE.FIRE_LIGHT_INTENSITY,
-      9
+      CAMP_LIGHT.fireColor,
+      CAMP_LIGHT.fireIntensity,
+      CAMP_LIGHT.fireDistance,
+      2
     );
     light.position.set(
-      CAMP_SCENE.FIRE_LIGHT_POSITION.x,
-      CAMP_SCENE.FIRE_LIGHT_POSITION.y,
-      CAMP_SCENE.FIRE_LIGHT_POSITION.z
+      CAMP_LAYOUT.fire.position.x,
+      CAMP_LAYOUT.fire.position.y + CAMP_LIGHT.fireHeight,
+      CAMP_LAYOUT.fire.position.z
     );
+    // Only the fire casts camp shadows; distant fill lights stay inexpensive.
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    light.shadow.camera.near = 0.1;
+    light.shadow.camera.far = CAMP_LIGHT.fireDistance;
+    light.shadow.bias = -0.0003;
+    light.shadow.normalBias = 0.025;
     fireGroup.add(light);
 
     fireGroup.remove(glow, light);
@@ -250,8 +265,6 @@ export class CampWorld {
     const bannerMaterial = new THREE.MeshStandardMaterial({
       color: 0x3a2416,
       roughness: 0.8,
-      emissive: new THREE.Color(0xff9a4d),
-      emissiveIntensity: 0.15,
     });
     const banner = new THREE.Group();
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.4, 6), bannerMaterial);
@@ -269,8 +282,6 @@ export class CampWorld {
     const crateMaterial = new THREE.MeshStandardMaterial({
       color: 0x2c1f12,
       roughness: 0.85,
-      emissive: new THREE.Color(0xff9a4d),
-      emissiveIntensity: 0.1,
     });
     const crates = new THREE.Group();
     for (let i = 0; i < 3; i++) {
@@ -351,15 +362,13 @@ export class CampWorld {
       color: 0x353a43,
       roughness: 0.75,
       metalness: 0.15,
-      emissive: new THREE.Color(station.accentColorHex),
-      emissiveIntensity: 0.08 * dim,
     });
     const accentMaterial = new THREE.MeshStandardMaterial({
       color: station.accentColorHex,
       roughness: 0.35,
       metalness: 0.3,
       emissive: new THREE.Color(station.accentColorHex),
-      emissiveIntensity: 0.6 * dim,
+      emissiveIntensity: 0.22 * dim,
     });
 
     switch (station.id) {
@@ -373,7 +382,7 @@ export class CampWorld {
             roughness: 0.35,
             metalness: 0.3,
             emissive: new THREE.Color(station.accentColorHex),
-            emissiveIntensity: 0.6,
+            emissiveIntensity: 0.22,
           });
           const barrel = new THREE.Mesh(
             new THREE.CylinderGeometry(0.05, 0.05, 1.3, 8),
@@ -432,8 +441,6 @@ export class CampWorld {
           color: 0x1a1006,
           roughness: 0.6,
           metalness: 0.25,
-          emissive: new THREE.Color(station.accentColorHex),
-          emissiveIntensity: 0.25,
         });
         const pillarGeometry = new THREE.BoxGeometry(0.35, 4.1, 0.35);
         const leftPillar = new THREE.Mesh(pillarGeometry, archMaterial);
@@ -474,15 +481,14 @@ export class CampWorld {
     visual.locked = locked;
 
     const dim = locked ? 0.4 : 1;
-    visual.baseMaterial.emissiveIntensity = 0.08 * dim;
-    visual.accentMaterial.emissiveIntensity = 0.6 * dim;
+    visual.accentMaterial.emissiveIntensity = 0.22 * dim;
 
   }
 
   public setWeaponUnlocks(unlockedFlags: boolean[]): void {
     for (let i = 0; i < this.weaponBarrelMaterials.length; i++) {
       const unlocked = unlockedFlags[i] ?? false;
-      this.weaponBarrelMaterials[i].emissiveIntensity = unlocked ? 0.6 : 0.15;
+      this.weaponBarrelMaterials[i].emissiveIntensity = unlocked ? 0.22 : 0.05;
     }
   }
 
@@ -533,11 +539,7 @@ export class CampWorld {
     this.backdrop.scale.setScalar(backdropScale);
     this.backdrop.position.y = CAMP_LAYOUT.backdrop.position.y * backdropScale;
 
-    const flicker =
-      1 +
-      Math.sin(this.elapsed * CAMP_SCENE.FIRE_FLICKER_SPEED) * CAMP_SCENE.FIRE_FLICKER_AMOUNT * 0.3 +
-      (Math.random() - 0.5) * CAMP_SCENE.FIRE_FLICKER_AMOUNT * 0.4;
-    this.fireLight.intensity = CAMP_SCENE.FIRE_LIGHT_INTENSITY * Math.max(0.4, flicker);
+    this.fireLight.intensity = CAMP_LIGHT.fireIntensity * fireFlicker(this.elapsed);
     this.flame.scale.y = 1 + Math.sin(this.elapsed * 7) * 0.04;
 
     this.updateEmbers(delta);

@@ -30,6 +30,8 @@ export class CoverProp {
         bodyMaterial
       );
       body.position.set(segmentX, COVER.HEIGHT / 2, 0);
+      body.castShadow = true;
+      body.receiveShadow = true;
       this.group.add(body);
 
       const strapTop = new THREE.Mesh(
@@ -37,9 +39,12 @@ export class CoverProp {
         strapMaterial
       );
       strapTop.position.set(segmentX, COVER.HEIGHT * 0.78, 0);
+      strapTop.castShadow = true;
+      strapTop.receiveShadow = true;
       this.group.add(strapTop);
     }
 
     this.group.position.set(0, 0, COVER.Z_OFFSET);
   }
 }
+

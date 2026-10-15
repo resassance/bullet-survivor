@@ -1,81 +1,23 @@
-import { createPortraitCanvas } from '../utils/portraitSprite';
 import type { DialogueLine } from '../gameplay/dialogueLines';
+import type { NovelCharacterId } from '../gameplay/novelScenes';
+import { VisualNovelScene } from './VisualNovelScene';
 
+/** Short briefings share the same stage, controls and placeholders as story scenes. */
 export class DialogueScreen {
-  private element: HTMLDivElement;
-  private portraitContainer: HTMLDivElement;
-  private nameElement: HTMLElement;
-  private textElement: HTMLElement;
-  private hintElement: HTMLElement;
-  private lines: DialogueLine[] = [];
-  private lineIndex = 0;
-  private onComplete: (() => void) | null = null;
+  private novel: VisualNovelScene;
 
-  constructor(container: HTMLElement) {
-    this.element = document.createElement('div');
-    this.element.className = 'dialogue-screen';
-    this.element.innerHTML = `
-      <div class="dialogue-stage">
-        <div class="dialogue-portrait"></div>
-      </div>
-      <div class="dialogue-textbox">
-        <span class="dialogue-name"></span>
-        <p class="dialogue-text"></p>
-        <span class="dialogue-hint">нажми, чтобы продолжить</span>
-      </div>
-    `;
-
-    this.portraitContainer = this.element.querySelector(
-      '.dialogue-portrait'
-    ) as HTMLDivElement;
-    this.nameElement = this.element.querySelector('.dialogue-name') as HTMLElement;
-    this.textElement = this.element.querySelector('.dialogue-text') as HTMLElement;
-    this.hintElement = this.element.querySelector('.dialogue-hint') as HTMLElement;
-
-    this.element.addEventListener('click', () => this.advance());
-
-    container.appendChild(this.element);
-  }
+  constructor(novel: VisualNovelScene) { this.novel = novel; }
 
   public play(lines: DialogueLine[], onComplete: () => void): void {
-    this.lines = lines;
-    this.lineIndex = 0;
-    this.onComplete = onComplete;
-    this.element.classList.add('dialogue-screen--visible');
-    this.renderCurrentLine();
-  }
-
-  private advance(): void {
-    this.lineIndex += 1;
-    if (this.lineIndex >= this.lines.length) {
-      this.finish();
-      return;
-    }
-    this.renderCurrentLine();
-  }
-
-  private renderCurrentLine(): void {
-    const line = this.lines[this.lineIndex];
-    if (!line) {
-      this.finish();
-      return;
-    }
-
-    this.nameElement.textContent = line.speaker;
-    this.nameElement.style.color = line.color;
-    this.textElement.textContent = line.text;
-
-    this.portraitContainer.innerHTML = '';
-    this.portraitContainer.appendChild(createPortraitCanvas('a', line.color));
-
-    this.hintElement.textContent =
-      this.lineIndex >= this.lines.length - 1 ? 'нажми, чтобы продолжить' : 'нажми для следующей реплики';
-  }
-
-  private finish(): void {
-    this.element.classList.remove('dialogue-screen--visible');
-    const callback = this.onComplete;
-    this.onComplete = null;
-    callback?.();
+    const characterId = (speaker: string): NovelCharacterId => speaker === 'Рен' ? 'ren' : 'yuki';
+    const characters = [...new Set(lines.map(line => characterId(line.speaker)))];
+    this.novel.play({
+      id: 'checkpoint-briefing',
+      title: 'На рубеже',
+      chapter: 'КПП · Радиоэфир',
+      background: 'camp_perimeter_night',
+      actors: characters.map((id, index) => ({ characterId: id, slot: characters.length === 1 ? 'center' : index === 0 ? 'left' : 'right' })),
+      lines: lines.map(line => ({ characterId: characterId(line.speaker), text: line.text })),
+    }, onComplete);
   }
 }

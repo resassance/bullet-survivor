@@ -12,7 +12,7 @@ export class Player {
   public readonly mesh: THREE.Mesh;
 
   private textures: Record<CharacterPose, THREE.Texture>;
-  private material: THREE.MeshBasicMaterial;
+  private material: THREE.MeshLambertMaterial;
   private movementPose: MovementPose = 'kneel';
   private displayedPose: CharacterPose = 'kneel';
   private crouchHoldTimer = 0;
@@ -32,8 +32,11 @@ export class Player {
 
     const geometry = new THREE.PlaneGeometry(PLAYER.WIDTH, PLAYER.HEIGHT);
 
-    this.material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.MeshLambertMaterial({
       map: this.textures.kneel,
+      emissive: 0xffffff,
+      emissiveMap: this.textures.kneel,
+      emissiveIntensity: 0.18,
       transparent: true,
       alphaTest: 0.1,
       side: THREE.DoubleSide,
@@ -41,11 +44,14 @@ export class Player {
 
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.position.set(0, PLAYER.HEIGHT / 2, PLAYER.SPAWN_Z);
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = true;
 
     loadCharacterSpriteSet(PLAYER_SPRITE_PATHS, (pose, texture) => {
       this.textures[pose] = texture;
       if (this.displayedPose === pose) {
         this.material.map = texture;
+        this.material.emissiveMap = texture;
         this.material.needsUpdate = true;
       }
     });
@@ -113,6 +119,7 @@ export class Player {
     if (pose === this.displayedPose) return;
     this.displayedPose = pose;
     this.material.map = this.textures[pose];
+    this.material.emissiveMap = this.textures[pose];
     this.material.needsUpdate = true;
   }
 
@@ -132,3 +139,4 @@ export class Player {
     return this.mesh.position;
   }
 }
+

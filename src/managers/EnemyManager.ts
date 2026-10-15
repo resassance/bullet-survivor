@@ -34,7 +34,7 @@ export class EnemyManager {
 
   private dummy = new THREE.Object3D();
   private elapsedTime = 0;
-  private material: THREE.MeshBasicMaterial;
+  private material: THREE.MeshLambertMaterial;
   private frameOffsetY: number;
   private speedMultiplier = 1;
   private highlightEnabled = false;
@@ -54,8 +54,11 @@ export class EnemyManager {
       (ENEMY_SPRITE_SHEET.ROWS - 1 - ENEMY_SPRITE_SHEET.WALK_ROW) / ENEMY_SPRITE_SHEET.ROWS;
     this.configureSpriteSheetTexture(texture);
 
-    this.material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.MeshLambertMaterial({
       map: texture,
+      emissive: 0xffffff,
+      emissiveMap: texture,
+      emissiveIntensity: 0.12,
       transparent: true,
       alphaTest: 0.1,
       side: THREE.DoubleSide,
@@ -65,6 +68,7 @@ export class EnemyManager {
     tryLoadTexture('/assets/sprites/enemy/ethereal.png', (loadedTexture) => {
       this.configureSpriteSheetTexture(loadedTexture);
       this.material.map = loadedTexture;
+      this.material.emissiveMap = loadedTexture;
       this.material.needsUpdate = true;
     });
 
@@ -72,6 +76,8 @@ export class EnemyManager {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = true;
 
     for (let i = 0; i < ENEMY.POOL_SIZE; i++) {
       this.slots.push({
@@ -353,3 +359,4 @@ export class EnemyManager {
     }
   }
 }
+
