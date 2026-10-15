@@ -1,0 +1,176 @@
+.novel-scene {
+  --speaker-color: #d6b78d;
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #10191e;
+  color: #e8e6de;
+  font-family: system-ui, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.35s ease, visibility 0.35s;
+  outline: none;
+}
+.novel-scene--visible { opacity: 1; visibility: visible; pointer-events: auto; }
+.novel-scene-background { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.novel-backdrop-placeholder, .novel-backdrop-placeholder svg { width: 100%; height: 100%; }
+.novel-scene-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, transparent 10%, #080f1666 100%), linear-gradient(0deg, #091217 1%, transparent 75%);
+}
+.novel-scene-header {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 32px);
+  left: 6vw;
+  right: 6vw;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  z-index: 2;
+}
+.novel-scene-chapter { margin: 0 0 10px; font: 10px/1.5 ui-monospace, monospace; letter-spacing: 0.17em; text-transform: uppercase; color: #b5b7ad; }
+.novel-scene-title { margin: 0; font-size: clamp(20px, 2.4vw, 32px); font-weight: 450; letter-spacing: -0.035em; }
+.novel-scene-skip {
+  flex-shrink: 0;
+  border: 1px solid #c5c8bd33;
+  border-radius: 3px;
+  padding: 12px 15px;
+  background: #101c2340;
+  color: #c4c7be;
+  font: 12px/1.5 system-ui, sans-serif;
+  cursor: pointer;
+}
+.novel-scene-skip span { margin-left: 14px; }
+.novel-scene-location { position: absolute; top: 29%; left: 6vw; font: 10px/1.6 ui-monospace, monospace; color: #c8c4ae99; writing-mode: vertical-rl; letter-spacing: 0.15em; text-transform: uppercase; }
+.novel-scene-actors { position: absolute; inset: 14% 0 29%; pointer-events: none; }
+.novel-actor {
+  --actor-x: 50%;
+  position: absolute;
+  left: var(--actor-x);
+  bottom: 0;
+  width: min(30vw, 320px);
+  color: var(--actor-color);
+  transform: translateX(-50%);
+  opacity: 0.3;
+  filter: saturate(0.4);
+  transition: opacity 0.3s, transform 0.3s, filter 0.3s;
+}
+.novel-actor--left { --actor-x: 24%; }
+.novel-actor--center-left { --actor-x: 35%; }
+.novel-actor--center-right { --actor-x: 65%; }
+.novel-actor--right { --actor-x: 76%; }
+.novel-actor--active { opacity: 0.95; filter: saturate(1); transform: translate(-50%, -6px); }
+.novel-figure svg { display: block; width: 100%; max-height: 53vh; }
+.novel-actor-image { display: block; width: 100%; max-height: 53vh; object-fit: contain; object-position: bottom; }
+.novel-actor-label { display: block; text-align: center; margin-top: -4px; font: 10px/1.5 ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.3em; }
+.novel-scene-textbox {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  left: 6vw;
+  right: 6vw;
+  z-index: 3;
+  padding: 24px 32px 18px;
+  border: 1px solid #b9c1b22e;
+  border-top-color: #c7c9b861;
+  border-radius: 4px;
+  background: linear-gradient(110deg, #172126f5, #111b20f5);
+  box-shadow: 0 12px 60px #0005;
+  cursor: pointer;
+}
+.novel-scene-speaker { display: flex; align-items: center; gap: 12px; }
+.novel-scene-speaker-mark { width: 6px; height: 6px; background: var(--speaker-color); transform: rotate(45deg); }
+.novel-scene-name { font-size: 12px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; color: var(--speaker-color); }
+.novel-scene-progress { margin-left: auto; font: 10px/1.5 ui-monospace, monospace; letter-spacing: 0.1em; color: #b9c0b5; }
+.novel-scene-text { font-size: clamp(17px, 1.65vw, 21px); font-weight: 400; line-height: 1.65; margin: 20px 0 22px; min-height: 3.3em; max-width: 920px; text-wrap: pretty; }
+.novel-scene-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.novel-scene-hint { font: 10px/1.6 ui-monospace, monospace; color: #9ca99f; }
+.novel-scene-next, .credits-continue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  min-height: 44px;
+  border: 1px solid #c8b69466;
+  border-radius: 3px;
+  padding: 11px 18px;
+  background: #d6b78d14;
+  color: #ead7b8;
+  font: 12px/1.5 system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.novel-scene-next:hover, .credits-continue:hover { background: #d6b78d2b; border-color: #d6b78d; }
+.novel-scene-skip:hover { color: #f3e8d6; border-color: #c8b69488; }
+.novel-scene button:focus-visible, .credits-screen button:focus-visible { outline: 2px solid #ead7b8; outline-offset: 4px; }
+
+.credits-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  overflow-y: auto;
+  touch-action: pan-y;
+  display: grid;
+  place-items: center;
+  background: #0b1419;
+  color: #e4e4d9;
+  font-family: system-ui, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.5s, visibility 0.5s;
+}
+html:has(.credits-screen--visible), body:has(.credits-screen--visible) { touch-action: pan-y; }
+.credits-screen--visible { opacity: 1; visibility: visible; pointer-events: auto; }
+.credits-horizon { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 65%, #b3935630, transparent 55%), linear-gradient(0deg, #080f13 20%, transparent 60%); }
+.credits-horizon::after { content: ''; position: absolute; left: 15%; right: 15%; top: 66%; height: 1px; background: linear-gradient(90deg, transparent, #a791624d, transparent); }
+.credits-content { position: relative; width: min(100%, 640px); text-align: center; padding: max(40px, env(safe-area-inset-top, 0px)) 24px max(32px, env(safe-area-inset-bottom, 0px)); }
+.credits-eyebrow { font: 10px/1.5 ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.2em; color: #bba682; margin: 0 0 28px; }
+.credits-title { font-size: clamp(48px, 7.5vw, 88px); line-height: 0.98; font-weight: 750; letter-spacing: -0.065em; margin: 0 0 24px; }
+.credits-title span { font-weight: 300; }
+.credits-body { font-size: 15px; color: #c0c7bf; line-height: 1.8; margin: 0; }
+.credits-divider { height: 1px; width: 46px; background: #ac95705c; margin: 28px auto; }
+.credits-names { display: flex; justify-content: center; gap: 56px; margin: 0; }
+.credits-names dt { font: 10px/1.5 ui-monospace, monospace; color: #9ca99f; margin-bottom: 8px; }
+.credits-names dd { margin: 0; font-size: 14px; }
+.credits-thanks { color: #aab6ad; font-size: 12px; margin: 28px 0 22px; }
+.credits-continue { margin: 0 auto; }
+.credits-screen--visible .credits-content { animation: credits-arrive 0.8s ease-out both; }
+@keyframes credits-arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 600px) {
+  .novel-scene-header { top: calc(env(safe-area-inset-top, 0px) + 20px); left: 20px; right: 20px; gap: 14px; }
+  .novel-scene-title { font-size: 21px; }
+  .novel-scene-chapter { font-size: 9px; max-width: 200px; }
+  .novel-scene-skip { max-width: 106px; padding: 10px; font-size: 10px; }
+  .novel-scene-skip span { display: none; }
+  .novel-scene-location { left: 18px; top: 25%; font-size: 8px; }
+  .novel-scene-actors { bottom: 38%; top: 19%; }
+  .novel-actor { width: 40vw; }
+  .novel-actor--left, .novel-actor--center-left { --actor-x: 29%; }
+  .novel-actor--right, .novel-actor--center-right { --actor-x: 71%; }
+  .novel-figure svg, .novel-actor-image { max-height: 37vh; }
+  .novel-scene-textbox { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); padding: 20px 18px 14px; }
+  .novel-scene-text { font-size: 16px; line-height: 1.6; min-height: 4.8em; margin: 18px 0; }
+  .novel-scene-footer { gap: 10px; }
+  .novel-scene-hint { max-width: 110px; font-size: 9px; }
+  .novel-scene-next { padding: 10px 14px; gap: 20px; }
+  .credits-names { gap: 36px; }
+}
+@media (max-height: 520px) and (min-width: 601px) {
+  .novel-scene-header { top: 16px; }
+  .novel-scene-title { font-size: 20px; }
+  .novel-scene-chapter { margin-bottom: 4px; }
+  .novel-scene-textbox { bottom: 12px; padding: 14px 24px 10px; }
+  .novel-scene-text { font-size: 15px; margin: 10px 0; min-height: 1.6em; }
+  .novel-scene-actors { bottom: 32%; }
+  .novel-figure svg, .novel-actor-image { max-height: 48vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .novel-scene, .novel-actor, .credits-screen { transition: none; }
+  .credits-screen--visible .credits-content { animation: none; }
+}

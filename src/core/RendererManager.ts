@@ -15,6 +15,12 @@ export class RendererManager {
       Math.min(window.devicePixelRatio, RENDERER.MAX_PIXEL_RATIO)
     );
 
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // HDR tone mapping happens once, after bloom in the composer.
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+
     this.applyViewportFix();
     this.resize();
   }
@@ -43,3 +49,4 @@ export class RendererManager {
     this.renderer.render(scene, camera);
   }
 }
+

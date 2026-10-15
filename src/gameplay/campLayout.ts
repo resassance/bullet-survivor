@@ -6,6 +6,8 @@ export interface CampAssetDefinition {
   width: number;
   height: number;
   pivot?: readonly [number, number];
+  /** Fire and other light emitters retain their painted brightness. */
+  unlit?: boolean;
 }
 
 export interface CampPropDefinition {
@@ -22,7 +24,7 @@ export const CAMP_LAYOUT = {
   },
   flame: {
     position: { x: -0.9, y: 0.45, z: 4.31 },
-    asset: { width: 1.6, height: 2.0 },
+    asset: { width: 1.6, height: 2.0, unlit: true },
   },
   character: {
     position: { x: 1.1, y: 0, z: 3.5 },

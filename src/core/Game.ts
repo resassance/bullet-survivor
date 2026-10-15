@@ -83,9 +83,6 @@ import {
   CAMERA_SHAKE,
   SUBTITLE,
   CAMP_CAMERA,
-  CAMP_SCENE,
-  BACKGROUND_COLOR,
-  FOG,
   STORY_PROGRESSION,
   SKILL_TUNING,
   AIM_ASSIST,
@@ -252,8 +249,8 @@ export class Game {
     );
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
-    this.dialogueScreen = new DialogueScreen(container);
     this.novelScene = new VisualNovelScene(container);
+    this.dialogueScreen = new DialogueScreen(this.novelScene);
     this.finalBossEncounter = new FinalBossEncounter(container, {
       isPaused: () => this.isPaused || this.isGameOver,
       getHealth: () => ({ current: this.healthManager.current, max: this.healthManager.max }),
@@ -397,6 +394,7 @@ export class Game {
       this.updateGameplay(delta);
     }
 
+    this.sceneManager.update(delta);
     this.campWorld.update(delta, this.rendererManager.aspect);
     if (this.isCampOpen) {
       this.campHotspotOverlay.update(this.cameraManager.camera, this.container, this.campWorld.getStationStates());
@@ -581,7 +579,6 @@ export class Game {
     this.stageManager.forceClear();
     this.trackEnemyKill('boss');
     this.novelScene.play(FINAL_BOSS_VICTORY_SCENE, () => {
-      this.finalBossEncounter.setVisible(false);
       this.finishStory();
     });
   }
@@ -988,7 +985,7 @@ export class Game {
   }
 
   private playPostStageNovelScene(isFinalStage: boolean): void {
-    const scene = pickNovelScene(this.stageManager.currentStage);
+    const scene = isFinalStage ? FINAL_BOSS_VICTORY_SCENE : pickNovelScene(this.stageManager.currentStage);
     this.novelScene.play(scene, () => {
       this.applyStoryStageBuff();
 
@@ -1038,9 +1035,11 @@ export class Game {
   }
 
   private finishStory(): void {
+    this.isPaused = true;
     this.storyCompleted = true;
     this.persist();
     this.fadeOverlay.transition(() => {
+      this.finalBossEncounter.setVisible(false);
       this.creditsScreen.show();
     });
   }
@@ -1252,8 +1251,8 @@ export class Game {
     this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
     this.campHotspotOverlay.setVisible(true);
     this.campWorld.setActiveStation(null);
-    this.sceneManager.scene.background = new THREE.Color(CAMP_SCENE.BACKGROUND_COLOR);
-    this.sceneManager.scene.fog = new THREE.FogExp2(CAMP_SCENE.FOG_COLOR, CAMP_SCENE.FOG_DENSITY);
+    this.sceneManager.setLightingMode('camp');
+    this.postProcessing.setLightingMode('camp');
     this.audioManager.startCampAmbience();
   }
 
@@ -1268,8 +1267,8 @@ export class Game {
     this.campHotspotOverlay.setVisible(false);
     this.campWorld.setActiveStation(null);
     this.campWorld.setHovered(null);
-    this.sceneManager.scene.background = new THREE.Color(BACKGROUND_COLOR);
-    this.sceneManager.scene.fog = new THREE.FogExp2(FOG.COLOR, FOG.DENSITY);
+    this.sceneManager.setLightingMode('checkpoint');
+    this.postProcessing.setLightingMode('checkpoint');
     this.audioManager.stopCampAmbience();
   }
 

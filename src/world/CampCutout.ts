@@ -9,6 +9,12 @@ export function createCampCutout(
 ): THREE.Group {
   const group = new THREE.Group();
   if (fallback) {
+    fallback.traverse(object => {
+      if (object instanceof THREE.Mesh && !asset.unlit && !(object.material instanceof THREE.MeshBasicMaterial)) {
+        object.castShadow = true;
+        object.receiveShadow = true;
+      }
+    });
     // Schematic geometry uses the same layout box and ground pivot as final art.
     const bounds = new THREE.Box3().setFromObject(fallback);
     const size = bounds.getSize(new THREE.Vector3());
@@ -32,16 +38,20 @@ export function createCampCutout(
     const height = width / aspect;
     const geometry = new THREE.PlaneGeometry(width, height);
     geometry.translate((0.5 - pivotX) * width, (0.5 - pivotY) * height, 0);
-    const material = new THREE.MeshBasicMaterial({
+    const surface = {
       map: texture,
       transparent: true,
       alphaTest: 0.08,
       depthWrite: true,
       side: THREE.DoubleSide,
-      toneMapped: false,
-    });
+    };
+    const material = asset.unlit
+      ? new THREE.MeshBasicMaterial({ ...surface, toneMapped: false })
+      : new THREE.MeshStandardMaterial({ ...surface, roughness: 1, metalness: 0, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.08 });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'camp-cutout';
+    mesh.castShadow = !asset.unlit;
+    mesh.receiveShadow = !asset.unlit;
     group.add(mesh);
     // Keep a failed or pending load usable; replace geometry only after success.
     if (fallback) fallback.visible = false;

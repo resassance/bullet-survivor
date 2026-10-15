@@ -1,5 +1,6 @@
 import './styles/main.css';
 import './styles/final-boss.css';
+import './styles/novel.css';
 import { Game } from './core/Game';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas');
