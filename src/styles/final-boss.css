@@ -18,7 +18,7 @@
 .final-boss [hidden] { display: none; }
 .is-final-boss > .hp-bar, .is-final-boss > .ammo-indicator, .is-final-boss > .weapon-indicator, .is-final-boss > .stage-indicator { display: none; }
 .is-final-boss > .pause-button { z-index: 8; left: auto; right: 16px; top: max(12px, env(safe-area-inset-top)); transform: none; }
-.is-final-boss > .pause-menu, .is-final-boss > .game-over-screen, .is-final-boss > .novel-scene, .is-final-boss > .dialogue-screen { z-index: 40; }
+.is-final-boss > .pause-menu, .is-final-boss > .game-over-screen, .is-final-boss > .novel-scene { z-index: 40; }
 .is-final-boss > .debug-panel { z-index: 8; }
 @media (max-width: 600px) {
   .final-boss-title { font-size: 12px; }

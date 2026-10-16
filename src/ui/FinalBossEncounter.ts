@@ -96,7 +96,6 @@ export class FinalBossEncounter {
   private readonly callbacks: EncounterCallbacks;
 
   public get started(): boolean { return this.fight.phase !== 'idle'; }
-  public get phase(): string { return this.fight.phase; }
 
   public start(loadout: Partial<FightLoadout>): void {
     this.fight.start(loadout);

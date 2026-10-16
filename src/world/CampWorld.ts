@@ -10,11 +10,9 @@ import { ATMOSPHERE, CAMP_LIGHT, fireFlicker } from './lightingProfiles';
 interface StationVisual {
   definition: CampStationDefinition;
   stationGroup: THREE.Group;
-  pad: THREE.Mesh;
   padMaterial: THREE.MeshBasicMaterial;
   label: string;
   accentMaterial: THREE.MeshStandardMaterial;
-  baseMaterial: THREE.MeshStandardMaterial;
   locked: boolean;
   hovered: boolean;
   active: boolean;
@@ -313,7 +311,7 @@ export class CampWorld {
     const { pad, material: padMaterial } = this.buildPad(station);
     stationGroup.add(pad);
 
-    const { group: propGroup, accentMaterial, baseMaterial } = this.buildProp(station);
+    const { group: propGroup, accentMaterial } = this.buildProp(station);
     stationGroup.add(createCampCutout(station.asset, propGroup));
 
     this.group.add(stationGroup);
@@ -321,11 +319,9 @@ export class CampWorld {
     this.stations.set(station.id, {
       definition: station,
       stationGroup,
-      pad,
       padMaterial,
       label: station.label,
       accentMaterial,
-      baseMaterial,
       locked: !station.ready,
       hovered: false,
       active: false,
@@ -353,7 +349,6 @@ export class CampWorld {
   ): {
     group: THREE.Group;
     accentMaterial: THREE.MeshStandardMaterial;
-    baseMaterial: THREE.MeshStandardMaterial;
   } {
     const propGroup = new THREE.Group();
     const dim = station.ready ? 1 : 0.4;
@@ -471,7 +466,7 @@ export class CampWorld {
       }
     }
 
-    return { group: propGroup, accentMaterial, baseMaterial };
+    return { group: propGroup, accentMaterial };
   }
 
   public setStationLocked(id: CampStationId, locked: boolean): void {

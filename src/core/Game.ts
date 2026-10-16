@@ -155,7 +155,7 @@ export class Game {
   private unlockedArchiveIds: Set<string> = new Set();
   private killCounts: KillCounts = { normal: 0, elite: 0, boss: 0 };
   private endlessIntroShown = false;
-  private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
+  private campReturnConfig: { gateId: CampStationId; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
   private pauseMenu: PauseMenu;
@@ -1219,7 +1219,7 @@ export class Game {
   }
 
   private showCamp(gateId: CampStationId, gateLabel: string, onPrimary: () => void): void {
-    this.campReturnConfig = { gateId, label: gateLabel, onPrimary };
+    this.campReturnConfig = { gateId, onPrimary };
     this.enterCampWorld();
 
     this.campWorld.resetGateLabel('story');

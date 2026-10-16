@@ -85,8 +85,5 @@ export class HealthManager {
   public get dead(): boolean {
     return this.isDead;
   }
-
-  public get isInvulnerable(): boolean {
-    return this.invulnerabilityTimer > 0;
-  }
 }
+
