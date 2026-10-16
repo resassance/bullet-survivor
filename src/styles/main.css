@@ -400,66 +400,10 @@ html, body {
   margin-bottom: 20px;
 }
 
-.shop-items {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.shop-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  text-align: left;
-  padding: 14px 18px;
-  background: rgba(20, 15, 35, 0.7);
-  border: 1px solid rgba(127, 232, 255, 0.3);
-  border-radius: 10px;
-}
-
-.shop-item-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.shop-item-name {
-  font-family: sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #f5f0ff;
-}
-
 .shop-item-description {
   font-family: sans-serif;
   font-size: 0.78rem;
   color: #b3a6d9;
-}
-
-.shop-item-buy {
-  flex-shrink: 0;
-  font-family: sans-serif;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  background: rgba(127, 232, 255, 0.16);
-  border: 1px solid rgba(127, 232, 255, 0.5);
-  color: #7fe8ff;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-.shop-item-buy:hover:not(:disabled) {
-  background: rgba(127, 232, 255, 0.3);
-  box-shadow: 0 0 18px rgba(127, 232, 255, 0.35);
-}
-
-.shop-item-buy:disabled {
-  cursor: default;
-  opacity: 0.4;
 }
 
 .shop-continue {
@@ -655,71 +599,6 @@ html, body {
   color: #e6ddff;
 }
 
-.dialogue-screen {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background: rgba(3, 3, 8, 0.85);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease-out;
-  cursor: pointer;
-}
-
-.dialogue-screen--visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.dialogue-stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-}
-
-.dialogue-portrait canvas {
-  width: min(52vw, 220px);
-  height: min(52vw, 220px);
-  filter: drop-shadow(0 0 30px rgba(155, 127, 255, 0.25));
-}
-
-.dialogue-textbox {
-  flex-shrink: 0;
-  width: 100%;
-  background: rgba(8, 6, 16, 0.95);
-  border-top: 1px solid rgba(155, 127, 255, 0.35);
-  padding: 18px 24px calc(env(safe-area-inset-bottom, 0px) + 18px);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.dialogue-name {
-  font-family: sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-}
-
-.dialogue-text {
-  font-family: sans-serif;
-  font-size: 1rem;
-  color: #e6ddff;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.dialogue-hint {
-  align-self: flex-end;
-  font-family: sans-serif;
-  font-size: 0.7rem;
-  color: #6a5f8a;
-  letter-spacing: 0.04em;
-}
-
 .debug-panel {
   position: absolute;
   top: 16px;
@@ -852,13 +731,6 @@ html, body {
   gap: 10px;
   margin: max(20px, env(safe-area-inset-top)) 24px 0;
   padding: 0;
-}
-
-.camp-portrait canvas {
-  width: 48px;
-  height: 66px;
-  display: block;
-  filter: drop-shadow(0 0 14px rgba(155, 127, 255, 0.35));
 }
 
 .camp-topbar-text {

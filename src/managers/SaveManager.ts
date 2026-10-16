@@ -77,17 +77,5 @@ export class SaveManager {
       return;
     }
   }
-
-  public clear(): void {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      return;
-    }
-  }
-
-  public get hasSave(): boolean {
-    return this.load() !== null;
-  }
 }
 

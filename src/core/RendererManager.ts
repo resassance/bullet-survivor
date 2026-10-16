@@ -44,9 +44,5 @@ export class RendererManager {
   public get aspect(): number {
     return window.innerWidth / window.innerHeight;
   }
-
-  public render(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
-    this.renderer.render(scene, camera);
-  }
 }
 

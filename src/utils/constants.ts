@@ -15,7 +15,6 @@ export const CAMERA_RELOAD_FOCUS = {
 };
 
 export const ARENA = {
-  WIDTH: 12,
   PLAYER_BOUND_X: 5,
   DEPTH: 60,
   ENEMY_SPAWN_Z: -50,
@@ -155,7 +154,6 @@ export const ENEMY_SPRITE_SHEET = {
   ROWS: 3,
   WALK_ROW: 0,
   WALK_FPS: 8,
-  PHASE_RANDOM_RANGE: 10,
 };
 
 export const OVERFLOW = {
@@ -164,10 +162,6 @@ export const OVERFLOW = {
   ELITE_KILL: 18,
   BOSS_KILL: 55,
   ACTIVE_DURATION: 10,
-};
-
-export const VOID_FINALE = {
-  CYCLE_DURATION: 10,
 };
 
 export const CURRENCY = {
@@ -196,7 +190,6 @@ export const ARCHIVE_REWARD = {
   ENEMY_BOSS: 50,
   WEAPON: 30,
   BUFF: 40,
-  LORE: 25,
 };
 
 export const ARCHIVE_KILL_THRESHOLDS = {
@@ -280,7 +273,6 @@ export const WIND_SLASH = {
   SPEED: 14,
   SPREAD: 0.9,
   RADIUS: 0.35,
-  PIERCE: 20,
   LIFETIME: 2.5,
   POOL_SIZE: 30,
   COLOR: 0x3bffb0,

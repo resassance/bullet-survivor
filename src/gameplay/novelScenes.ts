@@ -5,7 +5,6 @@ export type NovelBackgroundId =
   | 'city_outskirts_dusk';
 
 export interface NovelBackgroundDef {
-  id: NovelBackgroundId;
   fallbackGradient: [string, string];
   label: string;
   /** Optional final art; the schematic background remains until it loads. */
@@ -14,22 +13,18 @@ export interface NovelBackgroundDef {
 
 export const NOVEL_BACKGROUNDS: Record<NovelBackgroundId, NovelBackgroundDef> = {
   camp_perimeter_night: {
-    id: 'camp_perimeter_night',
     fallbackGradient: ['#26353b', '#101619'],
     label: 'Периметр лагеря · ночь',
   },
   ruined_highway: {
-    id: 'ruined_highway',
     fallbackGradient: ['#394445', '#141d22'],
     label: 'Разрушенное шоссе',
   },
   bunker_corridor: {
-    id: 'bunker_corridor',
     fallbackGradient: ['#243332', '#0d171a'],
     label: 'Бункер · внутренний коридор',
   },
   city_outskirts_dusk: {
-    id: 'city_outskirts_dusk',
     fallbackGradient: ['#51483e', '#19272d'],
     label: 'Окраина города · перед рассветом',
   },
@@ -38,7 +33,6 @@ export const NOVEL_BACKGROUNDS: Record<NovelBackgroundId, NovelBackgroundDef> = 
 export type NovelCharacterId = 'yuki' | 'ren';
 
 export interface NovelCharacterDef {
-  id: NovelCharacterId;
   displayName: string;
   color: string;
   imagePath?: string;
@@ -46,12 +40,10 @@ export interface NovelCharacterDef {
 
 export const NOVEL_CHARACTERS: Record<NovelCharacterId, NovelCharacterDef> = {
   yuki: {
-    id: 'yuki',
     displayName: 'Юки',
     color: '#d6b78d',
   },
   ren: {
-    id: 'ren',
     displayName: 'Рен',
     color: '#a4c7c2',
   },

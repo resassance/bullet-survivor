@@ -7,7 +7,6 @@ interface ProjectileSlot {
   x: number;
   y: number;
   z: number;
-  vx: number;
   vz: number;
   alive: boolean;
   life: number;
@@ -19,7 +18,6 @@ export class SpecialWeaponManager {
   private equipped: SpecialWeaponId | null = null;
   private cooldownTimer = 0;
   private activeTimer = 0;
-  private activeDuration = 0;
 
   private lightningGroup: THREE.Group;
   private lightningSegments: THREE.Mesh[] = [];
@@ -67,7 +65,7 @@ export class SpecialWeaponManager {
     this.windMesh.frustumCulled = false;
     this.group.add(this.windMesh);
     for (let i = 0; i < WIND_SLASH.POOL_SIZE; i++) {
-      this.windSlots.push({ x: 0, y: 0, z: 0, vx: 0, vz: 0, alive: false, life: 0 });
+      this.windSlots.push({ x: 0, y: 0, z: 0, vz: 0, alive: false, life: 0 });
     }
 
     const grenadeGeometry = new THREE.SphereGeometry(0.16, 8, 8);
@@ -81,7 +79,7 @@ export class SpecialWeaponManager {
     this.grenadeMesh.frustumCulled = false;
     this.group.add(this.grenadeMesh);
     for (let i = 0; i < GRENADE.POOL_SIZE; i++) {
-      this.grenadeSlots.push({ x: 0, y: 0, z: 0, vx: 0, vz: 0, alive: false, life: 0 });
+      this.grenadeSlots.push({ x: 0, y: 0, z: 0, vz: 0, alive: false, life: 0 });
       this.grenadeFuses.push(0);
     }
   }
@@ -90,13 +88,11 @@ export class SpecialWeaponManager {
     this.equipped = id;
     this.cooldownTimer = 0;
     this.activeTimer = durationSeconds;
-    this.activeDuration = durationSeconds;
   }
 
   public deactivate(): void {
     this.equipped = null;
     this.activeTimer = 0;
-    this.activeDuration = 0;
     this.cooldownTimer = 0;
   }
 
@@ -106,11 +102,6 @@ export class SpecialWeaponManager {
 
   public get activeId(): SpecialWeaponId | null {
     return this.equipped;
-  }
-
-  public get activeRatio(): number {
-    if (!this.equipped || this.activeDuration <= 0) return 0;
-    return Math.max(0, Math.min(1, this.activeTimer / this.activeDuration));
   }
 
   public get cooldownRatio(): number {
@@ -227,7 +218,6 @@ export class SpecialWeaponManager {
       slot.x = playerPosition.x + offset;
       slot.y = 1.1;
       slot.z = playerPosition.z;
-      slot.vx = 0;
       slot.vz = -WIND_SLASH.SPEED;
       slot.life = WIND_SLASH.LIFETIME;
     }
@@ -283,7 +273,6 @@ export class SpecialWeaponManager {
       slot.x = playerPosition.x + offset;
       slot.y = 0.9;
       slot.z = playerPosition.z;
-      slot.vx = 0;
       slot.vz = -GRENADE.SPEED;
       this.grenadeFuses[index] = GRENADE.FUSE_DURATION;
     }
@@ -372,7 +361,6 @@ export class SpecialWeaponManager {
     this.equipped = null;
     this.cooldownTimer = 0;
     this.activeTimer = 0;
-    this.activeDuration = 0;
     this.lightningVisibleTimer = 0;
     for (const segment of this.lightningSegments) {
       segment.visible = false;
@@ -387,4 +375,5 @@ export class SpecialWeaponManager {
     this.grenadeMesh.count = 0;
   }
 }
+
 
