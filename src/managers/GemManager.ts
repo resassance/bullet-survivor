@@ -3,7 +3,6 @@ import { GEM } from '../utils/constants';
 
 interface GemSlot {
   x: number;
-  y: number;
   z: number;
   alive: boolean;
   bobPhase: number;
@@ -28,7 +27,7 @@ export class GemManager {
     this.mesh.frustumCulled = false;
 
     for (let i = 0; i < GEM.POOL_SIZE; i++) {
-      this.slots.push({ x: 0, y: 0, z: 0, alive: false, bobPhase: 0 });
+      this.slots.push({ x: 0, z: 0, alive: false, bobPhase: 0 });
     }
   }
 
@@ -106,3 +105,4 @@ export class GemManager {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
+

@@ -1,0 +1,28 @@
+.final-boss { position: absolute; inset: 0; display: none; z-index: 5; overflow: clip; }
+.final-boss--visible { display: block; }
+.final-boss-canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+.final-boss-hud { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); text-align: center; pointer-events: none; color: #e3e8f1; font-family: sans-serif; }
+.final-boss-title { font-size: 15px; letter-spacing: 0.08em; margin: 0 0 6px; }
+.final-boss-health { font-size: 13px; margin-bottom: 6px; }
+.final-boss-health-bar { width: min(360px, 100%); height: 9px; accent-color: #e26778; }
+.final-boss-instructions { font-size: 12px; line-height: 1.5; color: #b5bfce; margin: 6px 0 0; }
+.final-boss-warning { position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 24px)); text-align: center; pointer-events: none; font-family: sans-serif; }
+.final-boss-status { color: #ffbdc5; font-size: 13px; line-height: 1.5; }
+.final-boss-cast { width: min(320px, 90%); height: 8px; accent-color: #ff5965; margin-top: 6px; }
+.final-boss-corner { position: absolute; transform: translate(-50%, -100%); width: min(200px, 32vw); min-height: 52px; padding: 8px; white-space: pre-line; font-family: sans-serif; font-size: 12px; line-height: 1.35; font-weight: 600; color: #d2dbe7; background: #202732; border: 1px solid #728092; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
+.final-boss-corner[aria-pressed="true"] { border: 2px solid #c9aaff; color: #dfcaff; }
+.final-boss-corner--target { background: #40212b; box-shadow: 0 0 0 3px rgba(255,89,101,0.3); border-color: #ff5965; }
+.final-boss-corner--broken { border-style: dashed; color: #b3bdcb; }
+.final-boss-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); min-height: 48px; padding: 12px 18px; color: #f3ce81; background: #242833; border: 2px solid #f3ce81; border-radius: 4px; font-family: sans-serif; font-weight: 700; cursor: pointer; }
+.final-boss button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.final-boss [hidden] { display: none; }
+.is-final-boss > .hp-bar, .is-final-boss > .ammo-indicator, .is-final-boss > .weapon-indicator, .is-final-boss > .stage-indicator { display: none; }
+.is-final-boss > .pause-button { z-index: 8; left: auto; right: 16px; top: max(12px, env(safe-area-inset-top)); transform: none; }
+.is-final-boss > .pause-menu, .is-final-boss > .game-over-screen, .is-final-boss > .novel-scene { z-index: 40; }
+.is-final-boss > .debug-panel { z-index: 8; }
+@media (max-width: 600px) {
+  .final-boss-title { font-size: 12px; }
+  .final-boss-health, .final-boss-instructions { font-size: 11px; }
+  .final-boss-corner { font-size: 10px; }
+  .final-boss-status { font-size: 11px; }
+}

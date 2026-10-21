@@ -15,37 +15,17 @@ export const CAMERA_RELOAD_FOCUS = {
 };
 
 export const ARENA = {
-  WIDTH: 12,
   PLAYER_BOUND_X: 5,
   DEPTH: 60,
   ENEMY_SPAWN_Z: -50,
   BULLET_DESPAWN_Z: -60,
 };
 
-export const FOG = {
-  COLOR: 0x07060d,
-  DENSITY: 0.05,
-};
-
-export const BACKGROUND_COLOR = 0x030308;
-
 export const GRID = {
   SIZE: 80,
   DIVISIONS: 40,
-  COLOR_MAIN: 0x201a38,
-  COLOR_SECONDARY: 0x120f22,
-  EMISSIVE_COLOR: 0x4a2fb8,
-};
-
-export const LIGHTING = {
-  AMBIENT_COLOR: 0x1c1730,
-  AMBIENT_INTENSITY: 0.38,
-  DIRECTIONAL_COLOR: 0x8a72e0,
-  DIRECTIONAL_INTENSITY: 0.7,
-  DIRECTIONAL_POSITION: { x: 3, y: 10, z: 5 },
-  RIM_COLOR: 0xff3b6e,
-  RIM_INTENSITY: 0.9,
-  RIM_POSITION: { x: -5, y: 3, z: -10 },
+  COLOR_MAIN: 0x3b4948,
+  COLOR_SECONDARY: 0x293738,
 };
 
 export const PLAYER = {
@@ -174,7 +154,6 @@ export const ENEMY_SPRITE_SHEET = {
   ROWS: 3,
   WALK_ROW: 0,
   WALK_FPS: 8,
-  PHASE_RANDOM_RANGE: 10,
 };
 
 export const OVERFLOW = {
@@ -183,10 +162,6 @@ export const OVERFLOW = {
   ELITE_KILL: 18,
   BOSS_KILL: 55,
   ACTIVE_DURATION: 10,
-};
-
-export const VOID_FINALE = {
-  CYCLE_DURATION: 10,
 };
 
 export const CURRENCY = {
@@ -215,7 +190,6 @@ export const ARCHIVE_REWARD = {
   ENEMY_BOSS: 50,
   WEAPON: 30,
   BUFF: 40,
-  LORE: 25,
 };
 
 export const ARCHIVE_KILL_THRESHOLDS = {
@@ -299,7 +273,6 @@ export const WIND_SLASH = {
   SPEED: 14,
   SPREAD: 0.9,
   RADIUS: 0.35,
-  PIERCE: 20,
   LIFETIME: 2.5,
   POOL_SIZE: 30,
   COLOR: 0x3bffb0,
@@ -330,25 +303,14 @@ export const INPUT = {
 
 export const CAMP_CAMERA = {
   BLEND_SPEED: 3.2,
-  OVERVIEW_POSITION: { x: 0, y: 7.6, z: 15.5 },
-  OVERVIEW_LOOK_AT: { x: 0, y: 1.7, z: 1 },
+  OVERVIEW_POSITION: { x: 0, y: 3.8, z: 16 },
+  OVERVIEW_LOOK_AT: { x: 0, y: 2.0, z: -1 },
+  COMPOSITION_ASPECT: 16 / 9,
   CAMERA_DRIFT_AMPLITUDE: 0.06,
   CAMERA_DRIFT_SPEED: 0.35,
 };
 
 export const CAMP_SCENE = {
-  BACKGROUND_COLOR: 0x120b08,
-  FOG_COLOR: 0x1a100a,
-  FOG_DENSITY: 0.035,
-  FLOOR_COLOR: 0x2a1c12,
-  FLOOR_EMISSIVE: 0x3d2413,
-  AMBIENT_COLOR: 0x4a2f1c,
-  AMBIENT_INTENSITY: 0.55,
-  FIRE_LIGHT_COLOR: 0xff9a4d,
-  FIRE_LIGHT_INTENSITY: 2.2,
-  FIRE_LIGHT_POSITION: { x: 0, y: 1.1, z: 1.2 },
-  FIRE_FLICKER_SPEED: 6,
-  FIRE_FLICKER_AMOUNT: 0.5,
   EMBER_POOL_SIZE: 18,
   EMBER_SPAWN_INTERVAL: 0.35,
   EMBER_COLOR: 0xffb066,
@@ -359,3 +321,4 @@ export const RENDERER = {
   MAX_PIXEL_RATIO: 2,
   ANTIALIAS: true,
 };
+

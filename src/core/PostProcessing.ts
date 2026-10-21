@@ -1,50 +1,47 @@
 import * as THREE from 'three';
-import {
-  EffectComposer,
-  RenderPass,
-  EffectPass,
-  BloomEffect,
-  GlitchEffect,
-  GlitchMode,
-  BlendFunction,
-} from 'postprocessing';
+import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, HueSaturationEffect, BlendFunction } from 'postprocessing';
+import { ATMOSPHERE, type LightingMode } from '../world/lightingProfiles';
 
 export class PostProcessing {
   private composer: EffectComposer;
+  private bloom: BloomEffect;
+  private vignette: VignetteEffect;
+  private renderer: THREE.WebGLRenderer;
+  private mode: LightingMode = 'checkpoint';
 
-  constructor(
-    renderer: THREE.WebGLRenderer,
-    scene: THREE.Scene,
-    camera: THREE.Camera
-  ) {
-    this.composer = new EffectComposer(renderer);
+  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+    this.renderer = renderer;
+    renderer.toneMappingExposure = ATMOSPHERE.checkpoint.exposure;
+    this.composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(scene, camera));
-
-    const bloom = new BloomEffect({
+    this.bloom = new BloomEffect({
       blendFunction: BlendFunction.ADD,
-      intensity: 1.3,
-      luminanceThreshold: 0.22,
-      luminanceSmoothing: 0.3,
+      intensity: ATMOSPHERE.checkpoint.bloom,
+      luminanceThreshold: 1,
+      luminanceSmoothing: 0.25,
       mipmapBlur: true,
-      radius: 0.8,
+      radius: 0.65,
+      resolutionScale: 0.5,
     });
-
-    const glitch = new GlitchEffect({
-      delay: new THREE.Vector2(3, 8),
-      duration: new THREE.Vector2(0.04, 0.12),
-      strength: new THREE.Vector2(0.02, 0.06),
-      ratio: 0.9,
-    });
-    glitch.mode = GlitchMode.SPORADIC;
-
-    this.composer.addPass(new EffectPass(camera, bloom, glitch));
+    this.composer.addPass(new EffectPass(camera, this.bloom));
+    this.vignette = new VignetteEffect({ offset: 0.3, darkness: ATMOSPHERE.checkpoint.vignette });
+    this.composer.addPass(new EffectPass(camera,
+      new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
+      new HueSaturationEffect({ saturation: -0.12 }),
+      this.vignette,
+    ));
   }
 
-  public resize(width: number, height: number): void {
-    this.composer.setSize(width, height);
-  }
+  public setLightingMode(mode: LightingMode): void { this.mode = mode; }
+
+  public resize(width: number, height: number): void { this.composer.setSize(width, height); }
 
   public render(delta: number): void {
+    const profile = ATMOSPHERE[this.mode];
+    const blend = 1 - Math.exp(-4 * delta);
+    this.renderer.toneMappingExposure += (profile.exposure - this.renderer.toneMappingExposure) * blend;
+    this.bloom.intensity += (profile.bloom - this.bloom.intensity) * blend;
+    this.vignette.darkness += (profile.vignette - this.vignette.darkness) * blend;
     this.composer.render(delta);
   }
 }

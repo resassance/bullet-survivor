@@ -21,7 +21,7 @@ export interface SaveData {
 function isPartialSaveData(value: unknown): value is Omit<
   SaveData,
   'frozenCurrency' | 'unlockedArchiveIds' | 'killCounts' | 'endlessIntroShown'
-> {
+> & Record<string, unknown> {
   if (!value || typeof value !== 'object') return false;
   const data = value as Record<string, unknown>;
   return (
@@ -77,16 +77,5 @@ export class SaveManager {
       return;
     }
   }
-
-  public clear(): void {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      return;
-    }
-  }
-
-  public get hasSave(): boolean {
-    return this.load() !== null;
-  }
 }
+

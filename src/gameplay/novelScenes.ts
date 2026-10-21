@@ -5,55 +5,47 @@ export type NovelBackgroundId =
   | 'city_outskirts_dusk';
 
 export interface NovelBackgroundDef {
-  id: NovelBackgroundId;
   fallbackGradient: [string, string];
-  imagePath: string;
+  label: string;
+  /** Optional final art; the schematic background remains until it loads. */
+  imagePath?: string;
 }
 
 export const NOVEL_BACKGROUNDS: Record<NovelBackgroundId, NovelBackgroundDef> = {
   camp_perimeter_night: {
-    id: 'camp_perimeter_night',
-    fallbackGradient: ['#120b08', '#040308'],
-    imagePath: '/assets/novel/backgrounds/camp_perimeter_night.jpg',
+    fallbackGradient: ['#26353b', '#101619'],
+    label: 'Периметр лагеря · ночь',
   },
   ruined_highway: {
-    id: 'ruined_highway',
-    fallbackGradient: ['#1a1430', '#050308'],
-    imagePath: '/assets/novel/backgrounds/ruined_highway.jpg',
+    fallbackGradient: ['#394445', '#141d22'],
+    label: 'Разрушенное шоссе',
   },
   bunker_corridor: {
-    id: 'bunker_corridor',
-    fallbackGradient: ['#0d1420', '#03040a'],
-    imagePath: '/assets/novel/backgrounds/bunker_corridor.jpg',
+    fallbackGradient: ['#243332', '#0d171a'],
+    label: 'Бункер · внутренний коридор',
   },
   city_outskirts_dusk: {
-    id: 'city_outskirts_dusk',
-    fallbackGradient: ['#2a1230', '#08040c'],
-    imagePath: '/assets/novel/backgrounds/city_outskirts_dusk.jpg',
+    fallbackGradient: ['#51483e', '#19272d'],
+    label: 'Окраина города · перед рассветом',
   },
 };
 
 export type NovelCharacterId = 'yuki' | 'ren';
 
 export interface NovelCharacterDef {
-  id: NovelCharacterId;
   displayName: string;
   color: string;
-  imagePath: string;
+  imagePath?: string;
 }
 
 export const NOVEL_CHARACTERS: Record<NovelCharacterId, NovelCharacterDef> = {
   yuki: {
-    id: 'yuki',
     displayName: 'Юки',
-    color: '#9b7fff',
-    imagePath: '/assets/novel/characters/yuki.png',
+    color: '#d6b78d',
   },
   ren: {
-    id: 'ren',
     displayName: 'Рен',
-    color: '#3bffb0',
-    imagePath: '/assets/novel/characters/ren.png',
+    color: '#a4c7c2',
   },
 };
 
@@ -72,6 +64,9 @@ export interface NovelLine {
 export interface NovelScene {
   id: string;
   background: NovelBackgroundId;
+  title?: string;
+  chapter?: string;
+  continueLabel?: string;
   actors: NovelActorPlacement[];
   lines: NovelLine[];
 }
@@ -119,3 +114,38 @@ export const NOVEL_SCENES: NovelScene[] = [
 export function pickNovelScene(stage: number): NovelScene {
   return NOVEL_SCENES[(stage - 1) % NOVEL_SCENES.length];
 }
+
+export const FINAL_BOSS_REN_SCENE: NovelScene = {
+  id: 'stage-10-ren-arrives',
+  title: 'По другую сторону удара',
+  chapter: 'Этап 10 · Последний рубеж',
+  continueLabel: 'К бою',
+  background: 'city_outskirts_dusk',
+  actors: [{ characterId: 'yuki', slot: 'left' }, { characterId: 'ren', slot: 'right' }],
+  lines: [
+    { characterId: 'yuki', text: 'Его щит треснул… Но этот удар я не выдержу.' },
+    { characterId: 'ren', text: 'Юки! Я прикрою тебя.' },
+    { characterId: 'yuki', text: 'Рен? Ты успел…' },
+    { characterId: 'ren', text: 'Мы связаны зеркально. Уходи в противоположный угол — я окажусь перед ударом.' },
+    { characterId: 'ren', text: 'Он целится вверх слева? Выбирай низ справа. И следи, чтобы я успел добраться.' },
+    { characterId: 'yuki', text: 'Поняла. Четыре укрытия, четыре отражения. Вместе.' },
+  ],
+};
+
+export const FINAL_BOSS_VICTORY_SCENE: NovelScene = {
+  id: 'stage-10-victory',
+  title: 'Возвращаемся домой',
+  chapter: 'Этап 10 · Эпилог',
+  continueLabel: 'К титрам',
+  background: 'city_outskirts_dusk',
+  actors: [{ characterId: 'yuki', slot: 'center-left' }, { characterId: 'ren', slot: 'center-right' }],
+  lines: [
+    { characterId: 'ren', text: 'Последний удар вернулся к нему. Больше он не поднимется.' },
+    { characterId: 'yuki', text: 'Так тихо… Я уже забыла, какой бывает тишина.' },
+    { characterId: 'ren', text: 'На периметре ждут нашего сигнала. Скажем им, что путь свободен.' },
+    { characterId: 'yuki', text: 'Четыре укрытия в пыль. А мы всё ещё стоим.' },
+    { characterId: 'ren', text: 'Мы прикрыли друг друга. И теперь можем вернуться.' },
+    { characterId: 'yuki', text: 'В лагере ещё горит костёр. Пойдём домой, Рен.' },
+  ],
+};
+

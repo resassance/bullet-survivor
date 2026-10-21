@@ -30,6 +30,9 @@ import { HitFlash } from '../ui/HitFlash';
 import { SubtitleBar } from '../ui/SubtitleBar';
 import { DialogueScreen } from '../ui/DialogueScreen';
 import { VisualNovelScene } from '../ui/VisualNovelScene';
+import { FinalBossEncounter } from '../ui/FinalBossEncounter';
+import { FINAL_BOSS } from '../gameplay/finalBossConfig';
+import { FINAL_BOSS_REN_SCENE, FINAL_BOSS_VICTORY_SCENE } from '../gameplay/novelScenes';
 import { FadeOverlay } from '../ui/FadeOverlay';
 import { DebugPanel } from '../ui/DebugPanel';
 import { CampScreen } from '../ui/CampScreen';
@@ -62,7 +65,7 @@ import {
 
 import { CRATE_MODIFIERS } from '../gameplay/crateModifiers';
 import { pickRandomSkills } from '../gameplay/skills';
-import { WEAPONS } from '../gameplay/weapons';
+import { WEAPONS, findWeapon } from '../gameplay/weapons';
 import { SPECIAL_WEAPONS, type SpecialWeaponId } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
 import { isSpecialStationUnlocked, isWeaponUnlocked, bestUnlockedWeaponId } from '../gameplay/progression';
@@ -80,15 +83,11 @@ import {
   CAMERA_SHAKE,
   SUBTITLE,
   CAMP_CAMERA,
-  CAMP_SCENE,
-  BACKGROUND_COLOR,
-  FOG,
   STORY_PROGRESSION,
   SKILL_TUNING,
   AIM_ASSIST,
   ENEMY_TIER,
   OVERFLOW,
-  VOID_FINALE,
   BOSS_ATTACK,
   CURRENCY,
   CARD_TUNING,
@@ -132,6 +131,7 @@ export class Game {
   private subtitleBar: SubtitleBar;
   private dialogueScreen: DialogueScreen;
   private novelScene: VisualNovelScene;
+  private finalBossEncounter: FinalBossEncounter;
   private fadeOverlay: FadeOverlay;
   private creditsScreen: CreditsScreen;
   private campScreen: CampScreen;
@@ -155,7 +155,7 @@ export class Game {
   private unlockedArchiveIds: Set<string> = new Set();
   private killCounts: KillCounts = { normal: 0, elite: 0, boss: 0 };
   private endlessIntroShown = false;
-  private campReturnConfig: { gateId: CampStationId; label: string; onPrimary: () => void } | null =
+  private campReturnConfig: { gateId: CampStationId; onPrimary: () => void } | null =
     null;
   private pauseButton: PauseButton;
   private pauseMenu: PauseMenu;
@@ -176,8 +176,6 @@ export class Game {
   private endlessEliteSpawnedThisWave = false;
   private endlessBossSpawnedThisWave = false;
   private storyBossSpawnedThisStage = false;
-  private voidFinaleActive = false;
-  private voidCycleIndex = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     const container = canvas.parentElement;
@@ -251,8 +249,18 @@ export class Game {
     );
     this.hitFlash = new HitFlash(container);
     this.subtitleBar = new SubtitleBar(container);
-    this.dialogueScreen = new DialogueScreen(container);
     this.novelScene = new VisualNovelScene(container);
+    this.dialogueScreen = new DialogueScreen(this.novelScene);
+    this.finalBossEncounter = new FinalBossEncounter(container, {
+      isPaused: () => this.isPaused || this.isGameOver,
+      getHealth: () => ({ current: this.healthManager.current, max: this.healthManager.max }),
+      onDamage: (amount) => {
+        if (this.healthManager.takeDamage(amount)) this.applyPlayerDamageFeedback();
+        return !this.healthManager.dead;
+      },
+      onInterlude: () => this.playFinalBossInterlude(),
+      onVictory: () => this.playFinalBossVictory(),
+    });
     this.fadeOverlay = new FadeOverlay(container);
     this.creditsScreen = new CreditsScreen(container, () => this.returnToCampAfterStory());
 
@@ -378,7 +386,7 @@ export class Game {
     requestAnimationFrame(this.loop);
     const delta = Math.min(this.clock.getDelta(), 0.25);
 
-    this.healthManager.update(delta);
+    if (!this.isPaused && !this.isGameOver) this.healthManager.update(delta);
     this.cameraManager.update(delta, this.player.position.x, this.bulletManager.isReloading);
     this.pauseButton.setVisible(!this.isGameOver && !this.isPaused && !this.isCampOpen);
 
@@ -386,13 +394,21 @@ export class Game {
       this.updateGameplay(delta);
     }
 
-    this.campWorld.update(delta, this.cameraManager.camera);
-    this.campHotspotOverlay.update(this.cameraManager.camera, this.container);
+    this.sceneManager.update(delta);
+    this.campWorld.update(delta, this.rendererManager.aspect);
+    if (this.isCampOpen) {
+      this.campHotspotOverlay.update(this.cameraManager.camera, this.container, this.campWorld.getStationStates());
+    }
 
     this.postProcessing.render(delta);
   };
 
   private updateGameplay(delta: number): void {
+    if (this.isFinalBossStage) {
+      if (!this.finalBossEncounter.started) this.startFinalBossFight();
+      this.finalBossEncounter.update(delta);
+      return;
+    }
     this.inputManager.update(delta);
     this.player.update(
       delta,
@@ -465,8 +481,6 @@ export class Game {
           ? this.specialWeaponName(this.specialWeaponManager.activeId)
           : null
       );
-    } else {
-      this.updateVoidFinale();
     }
 
     this.collisionSystem.update({
@@ -532,27 +546,41 @@ export class Game {
     return tiers;
   }
 
-  private updateVoidFinale(): void {
-    if (this.mode !== 'story') return;
-    if (this.stageManager.currentStage !== STORY_PROGRESSION.TOTAL_STAGES) return;
+  private get isFinalBossStage(): boolean {
+    return this.mode === 'story' && this.stageManager.currentStage === FINAL_BOSS.stage && !this.storyCompleted;
+  }
 
-    if (!this.voidFinaleActive) {
-      if (this.stageManager.spawnedCount >= this.stageManager.totalCount / 2) {
-        this.voidFinaleActive = true;
-        this.voidCycleIndex = 0;
-        this.subtitleBar.show({ speaker: 'ВОЙД', text: 'Наступает...', color: '#ff2d78' });
-        this.specialWeaponManager.activate(SPECIAL_WEAPONS[0].id, VOID_FINALE.CYCLE_DURATION);
-      }
-      return;
-    }
+  private startFinalBossFight(): void {
+    this.enemyManager.clearAllAlive();
+    this.bossAttackManager.reset();
+    this.specialWeaponManager.deactivate();
+    this.battleWorld.visible = false;
+    const weapon = findWeapon(this.bulletManager.weaponId);
+    this.finalBossEncounter.start({
+      damage: Math.max(FINAL_BOSS.playerDamage, this.bulletManager.damage),
+      fireRate: Math.max(FINAL_BOSS.playerFireRate, weapon.fireRate * this.storyFireRateMultiplier),
+      magazine: this.bulletManager.magazineCapacity,
+      reloadDuration: weapon.reloadDuration,
+    });
+  }
 
-    if (!this.specialWeaponManager.isActive) {
-      this.voidCycleIndex = (this.voidCycleIndex + 1) % SPECIAL_WEAPONS.length;
-      this.specialWeaponManager.activate(
-        SPECIAL_WEAPONS[this.voidCycleIndex].id,
-        VOID_FINALE.CYCLE_DURATION
-      );
-    }
+  private playFinalBossInterlude(): void {
+    if (this.isGameOver) return;
+    this.isPaused = true;
+    this.novelScene.play(FINAL_BOSS_REN_SCENE, () => {
+      this.finalBossEncounter.beginMirror();
+      this.isPaused = false;
+    });
+  }
+
+  private playFinalBossVictory(): void {
+    if (this.isGameOver) return;
+    this.isPaused = true;
+    this.stageManager.forceClear();
+    this.trackEnemyKill('boss');
+    this.novelScene.play(FINAL_BOSS_VICTORY_SCENE, () => {
+      this.finishStory();
+    });
   }
 
   private updateSubtitleTimer(delta: number): void {
@@ -897,6 +925,22 @@ export class Game {
 
   private handleGameOver(): void {
     this.isGameOver = true;
+    if (this.isFinalBossStage) {
+      this.finalBossEncounter.fail();
+      this.gameOverScreen.show({
+        title: 'ВОЙД ЕЩЁ НЕ ПОБЕЖДЁН',
+        subtitle: 'Повторите финальный бой. Пройденные этапы сохраняются.',
+        buttonLabel: 'повторить бой',
+        onAction: () => {
+          this.gameOverScreen.hide();
+          this.isGameOver = false;
+          this.isPaused = false;
+          this.healthManager.healToFull();
+          this.startFinalBossFight();
+        },
+      });
+      return;
+    }
 
     if (this.mode === 'endless') {
       const wave = this.endlessStageManager.currentStage;
@@ -941,7 +985,7 @@ export class Game {
   }
 
   private playPostStageNovelScene(isFinalStage: boolean): void {
-    const scene = pickNovelScene(this.stageManager.currentStage);
+    const scene = isFinalStage ? FINAL_BOSS_VICTORY_SCENE : pickNovelScene(this.stageManager.currentStage);
     this.novelScene.play(scene, () => {
       this.applyStoryStageBuff();
 
@@ -991,9 +1035,11 @@ export class Game {
   }
 
   private finishStory(): void {
+    this.isPaused = true;
     this.storyCompleted = true;
     this.persist();
     this.fadeOverlay.transition(() => {
+      this.finalBossEncounter.setVisible(false);
       this.creditsScreen.show();
     });
   }
@@ -1017,7 +1063,7 @@ export class Game {
         this.showEndlessIntroReward();
       }
     } else {
-      this.showCamp('story', 'сюжетка', () => this.launchStageFromCamp());
+      this.showCamp('story', 'продолжить историю', () => this.launchStageFromCamp());
     }
   }
 
@@ -1043,6 +1089,11 @@ export class Game {
     this.syncStoryAssist();
     this.storyBossSpawnedThisStage = false;
     this.bossAttackManager.reset();
+    if (this.isFinalBossStage) {
+      this.startFinalBossFight();
+      this.isPaused = false;
+      return;
+    }
     const dialogue = pickIntroDialogue(this.stageManager.currentStage);
     this.dialogueScreen.play(dialogue, () => {
       this.isPaused = false;
@@ -1050,6 +1101,7 @@ export class Game {
   }
 
   private launchEndlessRun(): void {
+    this.finalBossEncounter.reset();
     this.campScreen.hide();
     this.exitCampWorld();
     this.mode = 'endless';
@@ -1167,7 +1219,7 @@ export class Game {
   }
 
   private showCamp(gateId: CampStationId, gateLabel: string, onPrimary: () => void): void {
-    this.campReturnConfig = { gateId, label: gateLabel, onPrimary };
+    this.campReturnConfig = { gateId, onPrimary };
     this.enterCampWorld();
 
     this.campWorld.resetGateLabel('story');
@@ -1185,6 +1237,8 @@ export class Game {
 
   private enterCampWorld(): void {
     this.isCampOpen = true;
+    this.finalBossEncounter.setVisible(false);
+    this.container.classList.add('is-camp');
     this.battleWorld.visible = false;
     this.campWorld.group.visible = true;
     const stage = this.stageManager.currentStage;
@@ -1197,21 +1251,24 @@ export class Game {
     this.cameraManager.setCampTarget(CAMP_CAMERA.OVERVIEW_POSITION, CAMP_CAMERA.OVERVIEW_LOOK_AT);
     this.campHotspotOverlay.setVisible(true);
     this.campWorld.setActiveStation(null);
-    this.sceneManager.scene.background = new THREE.Color(CAMP_SCENE.BACKGROUND_COLOR);
-    this.sceneManager.scene.fog = new THREE.FogExp2(CAMP_SCENE.FOG_COLOR, CAMP_SCENE.FOG_DENSITY);
+    this.sceneManager.setLightingMode('camp');
+    this.postProcessing.setLightingMode('camp');
     this.audioManager.startCampAmbience();
   }
 
   private exitCampWorld(): void {
     this.isCampOpen = false;
-    this.battleWorld.visible = true;
+    this.container.classList.remove('is-camp');
+    const resumeFinalBoss = this.isFinalBossStage && this.finalBossEncounter.started;
+    this.battleWorld.visible = !resumeFinalBoss;
+    this.finalBossEncounter.setVisible(resumeFinalBoss);
     this.campWorld.group.visible = false;
     this.cameraManager.setCampActive(false);
     this.campHotspotOverlay.setVisible(false);
     this.campWorld.setActiveStation(null);
     this.campWorld.setHovered(null);
-    this.sceneManager.scene.background = new THREE.Color(BACKGROUND_COLOR);
-    this.sceneManager.scene.fog = new THREE.FogExp2(FOG.COLOR, FOG.DENSITY);
+    this.sceneManager.setLightingMode('checkpoint');
+    this.postProcessing.setLightingMode('checkpoint');
     this.audioManager.stopCampAmbience();
   }
 
@@ -1253,11 +1310,13 @@ export class Game {
 
   private openArchive(): void {
     this.campScreen.hide();
+    this.campHotspotOverlay.setVisible(false);
     this.archiveScreen.show(this.unlockedArchiveIds);
   }
 
   private closeArchive(): void {
     this.archiveScreen.hide();
+    this.campHotspotOverlay.setVisible(true);
     this.returnToCampOverview();
     if (this.campReturnConfig) {
       this.campScreen.show(
@@ -1271,6 +1330,10 @@ export class Game {
   }
 
   private debugSkipStage(): void {
+    if (this.isFinalBossStage) {
+      this.finalBossEncounter.debugAdvance();
+      return;
+    }
     this.enemyManager.clearAllAlive();
     this.activeStageManager.forceClear();
   }
@@ -1283,6 +1346,8 @@ export class Game {
 
     this.enemyManager.clearAllAlive();
     manager.setStage(nextStage);
+    this.finalBossEncounter.reset();
+    this.battleWorld.visible = !this.isCampOpen;
     this.bossAttackManager.reset();
     this.resetForLevelTransition();
 
@@ -1350,8 +1415,7 @@ export class Game {
     this.endlessEliteSpawnedThisWave = false;
     this.endlessBossSpawnedThisWave = false;
     this.storyBossSpawnedThisStage = false;
-    this.voidFinaleActive = false;
-    this.voidCycleIndex = 0;
+    this.finalBossEncounter.reset();
 
     this.healthManager.reset();
     this.levelSystem.reset();
@@ -1392,3 +1456,4 @@ export class Game {
     this.returnToCampHub();
   }
 }
+

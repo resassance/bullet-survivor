@@ -9,13 +9,11 @@ export type BuffType =
 export type CardTier = 1 | 2 | 3 | 4;
 
 export interface BuffCardDef {
-  id: string;
   type: BuffType;
   tier: CardTier;
   name: string;
   description: string;
   value: number;
-  maxTier: CardTier;
 }
 
 export interface CardEffect {
@@ -71,17 +69,14 @@ export const BUFF_CARD_DEFS: BuffCardDef[] = [];
 
 for (const type of Object.keys(TIER_VALUES) as BuffType[]) {
   const values = TIER_VALUES[type];
-  const maxTier = values.length as CardTier;
   values.forEach((value, index) => {
     const tier = (index + 1) as CardTier;
     BUFF_CARD_DEFS.push({
-      id: `${type}_${tier}`,
       type,
       tier,
       name: BUFF_TYPE_NAMES[type],
       description: describe(type, value),
       value,
-      maxTier,
     });
   });
 }
@@ -151,3 +146,4 @@ export function rollShopOffers(count: number): BuffCardDef[] {
   }
   return offers;
 }
+

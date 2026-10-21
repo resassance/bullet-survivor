@@ -305,11 +305,6 @@ export class BulletManager {
     return this.reloading;
   }
 
-  public get reloadProgress(): number {
-    if (!this.reloading) return 1;
-    return 1 - this.reloadTimer / (this.weapon.reloadDuration * this.reloadSpeedMultiplier);
-  }
-
   public get ammo(): number {
     return this.currentAmmo;
   }
@@ -407,3 +402,4 @@ export class BulletManager {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
+

@@ -1,4 +1,3 @@
-import { createCharacterPoseTexture } from '../utils/characterSprite';
 import { WEAPONS } from '../gameplay/weapons';
 import { SPECIAL_WEAPONS } from '../gameplay/specialWeapons';
 import { type CampStationId, findCampStation } from '../gameplay/campStations';
@@ -40,9 +39,9 @@ export class CampScreen {
     this.callbacks = callbacks;
     this.element = document.createElement('div');
     this.element.className = 'camp-screen';
+    this.element.inert = true;
     this.element.innerHTML = `
       <div class="camp-topbar">
-        <div class="camp-portrait"></div>
         <div class="camp-topbar-text">
           <h1 class="camp-title">лагерь</h1>
           <div class="camp-info-row">
@@ -61,11 +60,8 @@ export class CampScreen {
       </div>
     `;
 
-    const portraitContainer = this.element.querySelector('.camp-portrait') as HTMLDivElement;
-    const texture = createCharacterPoseTexture('kneel');
-    portraitContainer.appendChild(texture.image as HTMLCanvasElement);
-
     this.panel = this.element.querySelector('.camp-panel') as HTMLDivElement;
+    this.panel.inert = true;
     this.panelTitle = this.element.querySelector('.camp-panel-title') as HTMLDivElement;
     this.panelBody = this.element.querySelector('.camp-panel-body') as HTMLDivElement;
     this.infoStage = this.element.querySelector('.camp-info-stage') as HTMLDivElement;
@@ -79,6 +75,7 @@ export class CampScreen {
   }
 
   public openStation(id: CampStationId): void {
+    this.panel.inert = false;
     if (id === 'archive') {
       this.callbacks.onArchiveOpen();
       return;
@@ -256,6 +253,7 @@ export class CampScreen {
   }
 
   public closePanel(): void {
+    this.panel.inert = true;
     this.panel.classList.remove('camp-panel--visible');
     this.callbacks.onPanelClosed();
   }
@@ -273,12 +271,17 @@ export class CampScreen {
     this.weaponAutoManaged = weaponAutoManaged;
     this.frozenCurrency = frozenCurrency;
     this.updateInfoRow();
+    this.element.inert = false;
+    this.panel.inert = true;
     this.panel.classList.remove('camp-panel--visible');
     this.element.classList.add('camp-screen--visible');
   }
 
   public hide(): void {
+    this.element.inert = true;
+    this.panel.inert = true;
     this.element.classList.remove('camp-screen--visible');
     this.panel.classList.remove('camp-panel--visible');
   }
 }
+

@@ -104,7 +104,13 @@ export class CameraManager {
     this.campCurrentPosition.lerp(this.campTargetPosition, campSmoothing);
     this.campCurrentLookAt.lerp(this.campTargetLookAt, campSmoothing);
 
-    const finalPosition = blendedPosition.lerp(this.campCurrentPosition, this.campBlend);
+    // Preserve the whole camp on narrow viewports instead of cropping stations.
+    const campDistanceScale = Math.max(1, CAMP_CAMERA.COMPOSITION_ASPECT / this.camera.aspect);
+    const fittedCampPosition = this.campCurrentPosition.clone()
+      .sub(this.campCurrentLookAt)
+      .multiplyScalar(campDistanceScale)
+      .add(this.campCurrentLookAt);
+    const finalPosition = blendedPosition.lerp(fittedCampPosition, this.campBlend);
     const finalLookAt = blendedLookAt.lerp(this.campCurrentLookAt, this.campBlend);
 
     if (this.campBlend > 0.01) {
@@ -138,3 +144,4 @@ export class CameraManager {
     );
   }
 }
+
